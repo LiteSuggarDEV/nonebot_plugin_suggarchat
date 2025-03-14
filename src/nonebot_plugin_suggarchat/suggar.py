@@ -787,26 +787,27 @@ async def _(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
                     + MessageSegment.text(response)
                 )
 
-                if not nature_chat_mode:
-                    await poke.send(message)
-                else:
-                    response_list = split_message_into_chats(response)
-                    if response_list:  # 确保消息列表非空
-                        # 将@用户添加到第一条消息
-                        first_message = (
-                            MessageSegment.at(event.user_id)
-                            + MessageSegment.text(" ")
-                            + response_list[0]
-                        )
-                        await poke.send(first_message)
-
-                        # 发送剩余消息并保持原有延迟逻辑
-                        for message in response_list[1:]:
-                            await poke.send(message)
-                            await asyncio.sleep(
-                                random.randint(1, 3)
-                                + int(len(message) / random.randint(80, 100))
+                if not config["stream"]:
+                    if not nature_chat_mode:
+                        await poke.send(message)
+                    else:
+                        response_list = split_message_into_chats(response)
+                        if response_list:  # 确保消息列表非空
+                            # 将@用户添加到第一条消息
+                            first_message = (
+                                MessageSegment.at(event.user_id)
+                                + MessageSegment.text(" ")
+                                + response_list[0]
                             )
+                            await poke.send(first_message)
+
+                            # 发送剩余消息并保持原有延迟逻辑
+                            for message in response_list[1:]:
+                                await poke.send(message)
+                                await asyncio.sleep(
+                                    random.randint(1, 3)
+                                    + int(len(message) / random.randint(80, 100))
+                                )
 
         else:
             name = get_friend_info(event.user_id)
@@ -842,17 +843,18 @@ async def _(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
                 await send_to_admin(f"POKEMSG {send_messages}")
             message = MessageSegment.text(response)
 
-            if not nature_chat_mode:
-                await poke.send(message)
-            else:
-                response_list = split_message_into_chats(response)
-                # await poke.send(MessageSegment.at(event.user_id))
-                for message in response_list:
+            if not config["stream"]:
+                if not nature_chat_mode:
                     await poke.send(message)
-                    await asyncio.sleep(
-                        random.randint(1, 3)
-                        + int(len(message) / random.randint(80, 100))
-                    )
+                else:
+                    response_list = split_message_into_chats(response)
+                    # await poke.send(MessageSegment.at(event.user_id))
+                    for message in response_list:
+                        await poke.send(message)
+                        await asyncio.sleep(
+                            random.randint(1, 3)
+                            + int(len(message) / random.randint(80, 100))
+                        )
 
     except Exception as e:
         # 异常处理，记录错误信息并发送给管理员
@@ -1315,26 +1317,27 @@ async def _(event: MessageEvent, matcher: Matcher, bot: Bot):
                             {"role": "assistant", "content": str(response)}
                         )
 
-                        if not nature_chat_mode:
-                            await chat.send(message)
-                        else:
-                            response_list = split_message_into_chats(response)
-                            if response_list:  # 确保消息列表非空
-                                # 将@用户添加到第一条消息
-                                first_message = (
-                                    MessageSegment.at(event.user_id)
-                                    + MessageSegment.text(" ")
-                                    + response_list[0]
-                                )
-                                await chat.send(first_message)
-
-                                # 发送剩余消息并保持原有延迟逻辑
-                                for message in response_list[1:]:
-                                    await chat.send(message)
-                                    await asyncio.sleep(
-                                        random.randint(1, 3)
-                                        + int(len(message) / random.randint(80, 100))
+                        if not config["stream"]:
+                            if not nature_chat_mode:
+                                await chat.send(message)
+                            else:
+                                response_list = split_message_into_chats(response)
+                                if response_list:  # 确保消息列表非空
+                                    # 将@用户添加到第一条消息
+                                    first_message = (
+                                        MessageSegment.at(event.user_id)
+                                        + MessageSegment.text(" ")
+                                        + response_list[0]
                                     )
+                                    await chat.send(first_message)
+
+                                    # 发送剩余消息并保持原有延迟逻辑
+                                    for message in response_list[1:]:
+                                        await chat.send(message)
+                                        await asyncio.sleep(
+                                            random.randint(1, 3)
+                                            + int(len(message) / random.randint(80, 100))
+                                        )
 
                     except Exception as e:
                         await chat.send(f"出错了，稍后试试（错误已反馈")
@@ -1512,17 +1515,18 @@ async def _(event: MessageEvent, matcher: Matcher, bot: Bot):
                             {"role": "assistant", "content": str(response)}
                         )
 
-                        if not nature_chat_mode:
-                            await chat.send(message)
-                        else:
-                            # await chat.send(MessageSegment.at(event.user_id))
-                            response_list = split_message_into_chats(response)
-                            for response in response_list:
-                                await chat.send(response)
-                                await asyncio.sleep(
-                                    random.randint(1, 3)
-                                    + int(len(message) / random.randint(80, 100))
-                                )
+                        if not config["stream"]:
+                            if not nature_chat_mode:
+                                await chat.send(message)
+                            else:
+                                # await chat.send(MessageSegment.at(event.user_id))
+                                response_list = split_message_into_chats(response)
+                                for response in response_list:
+                                    await chat.send(response)
+                                    await asyncio.sleep(
+                                        random.randint(1, 3)
+                                        + int(len(message) / random.randint(80, 100))
+                                    )
 
                     except Exception as e:
                         exc_type, exc_value, exc_traceback = sys.exc_info()
