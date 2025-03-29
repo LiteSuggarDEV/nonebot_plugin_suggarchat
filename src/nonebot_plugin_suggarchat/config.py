@@ -3,18 +3,19 @@ import json
 import os
 from pathlib import Path
 
+import nonebot_plugin_localstore as store
 from pydantic import BaseModel
 import tomli
 import tomli_w
 
 
 __KERNEL_VERSION__: str = "V2.0.0-Public"
-# 获取当前工作目录
-CURRENT_DIR: Path = Path(os.getcwd())
 
 # 配置目录
-CONFIG_DIR: Path = CURRENT_DIR / "config" / "nonebot_plugin_suggarchat"
-DATA_DIR: Path = CURRENT_DIR / "data" / "nonebot_plugin_suggarchat"
+CONFIG_DIR: Path = (
+    store.get_plugin_config_dir() / "config" / "nonebot_plugin_suggarchat"
+)
+DATA_DIR: Path = store.get_plugin_data_dir() / "data" / "nonebot_plugin_suggarchat"
 
 # 记忆存储路径
 GROUP_MEMORY_DIR: Path = DATA_DIR / "group"
