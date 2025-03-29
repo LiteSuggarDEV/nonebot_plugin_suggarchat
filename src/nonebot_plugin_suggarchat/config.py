@@ -152,7 +152,7 @@ class ConfigManager:
         os.makedirs(self.custom_models_dir, exist_ok=True)
 
         # 处理配置文件转换
-        if self.json_config.exists() and not self.toml_config.exists():
+        if self.json_config.exists():
             with self.json_config.open("r", encoding="utf-8") as f:
                 data: dict = json.load(f)
 
