@@ -1,50 +1,56 @@
-from nonebot import on_command, on_notice, on_message, get_driver
-from nonebot.adapters import Event
-import nonebot.adapters
-from nonebot.rule import to_me
-from nonebot.adapters import Message
-from nonebot.params import CommandArg
-from .conf import *
-from .matcher import SuggarMatcher
-from .event import PokeEvent, ChatEvent, EventType
-from .conf import __KERNEL_VERSION__
-from .resources import (
-    get_current_datetime_timestamp,
-    get_config,
-    get_friend_info,
-    get_memory_data,
-    write_memory_data,
-    get_models,
-    save_config,
-    get_group_prompt,
-    get_private_prompt,
-    synthesize_message,
-    split_message_into_chats,
-    format_datetime_timestamp,
-    hybrid_token_count,
-    __default_config__,
-)
-import time
-from nonebot.adapters.onebot.v11 import (
-    Message,
-    MessageSegment,
-    GroupMessageEvent,
-    GroupIncreaseNoticeEvent,
-    PrivateMessageEvent,
-    Bot,
-    PokeNotifyEvent,
-    GroupRecallNoticeEvent,
-    MessageEvent,
-)
-import os
-from nonebot import logger
-from nonebot.matcher import Matcher
-import sys
-import openai
-import random
 import asyncio
 from datetime import datetime
+from pathlib import Path
+import random
+import sys
+import time
+
+from nonebot import get_driver, logger, on_command, on_message, on_notice
+import nonebot.adapters
+from nonebot.adapters import Message
+from nonebot.adapters.onebot.v11 import (
+    Bot,
+    GroupIncreaseNoticeEvent,
+    GroupMessageEvent,
+    GroupRecallNoticeEvent,
+    MessageEvent,
+    MessageSegment,
+    PokeNotifyEvent,
+    PrivateMessageEvent,
+)
 from nonebot.exception import NoneBotException
+from nonebot.matcher import Matcher
+from nonebot.params import CommandArg
+from nonebot.rule import to_me
+import openai
+
+from .conf import (
+    __KERNEL_VERSION__,
+    get_config_dir,
+    get_config_file_path,
+    get_custom_models_dir,
+    get_group_memory_dir,
+    get_private_memory_dir,
+)
+from .event import ChatEvent, EventType, PokeEvent
+from .matcher import SuggarMatcher
+from .resources import (
+    __default_config__,
+    format_datetime_timestamp,
+    get_config,
+    get_current_datetime_timestamp,
+    get_friend_info,
+    get_group_prompt,
+    get_memory_data,
+    get_models,
+    get_private_prompt,
+    hybrid_token_count,
+    save_config,
+    split_message_into_chats,
+    synthesize_message,
+    write_memory_data,
+)
+
 
 session_clear_group = []
 session_clear_user = []
@@ -72,6 +78,7 @@ main_config: Path
 custom_models_dir: Path
 private_memory: Path
 group_memory: Path
+
 
 async def openai_get_chat(base_url, model, key, messages, max_tokens, config) -> str:
     # 记录日志，开始获取对话
@@ -126,7 +133,26 @@ protocols_adapters = {"openai-builtin": openai_get_chat}
 
 def reload_from_memory():
     """从内存重载配置文件"""
-    global config_dir, main_config, custom_models_dir, private_memory, group_memory, config, group_train, private_train, ifenable, random_reply, random_reply_rate, keyword, admins, enable_matcher, nature_chat_mode, tokens_count_mode, session_max_tokens, enable_tokens_limit, models
+    global \
+        config_dir, \
+        main_config, \
+        custom_models_dir, \
+        private_memory, \
+        group_memory, \
+        config, \
+        group_train, \
+        private_train, \
+        ifenable, \
+        random_reply, \
+        random_reply_rate, \
+        keyword, \
+        admins, \
+        enable_matcher, \
+        nature_chat_mode, \
+        tokens_count_mode, \
+        session_max_tokens, \
+        enable_tokens_limit, \
+        models
     config_dir = get_config_dir()
     main_config = get_config_file_path()
     custom_models_dir = get_custom_models_dir()
@@ -411,7 +437,7 @@ async def sessions_handle(bot: Bot, event: MessageEvent, args: Message = Command
             await bot.get_group_member_info(
                 group_id=event.group_id, user_id=event.user_id
             )
-        )["role"] == "member" and not event.user_id in config["admins"]:
+        )["role"] == "member" and event.user_id not in config["admins"]:
             await sessions.finish("你没有操作历史会话的权限")
         id = event.group_id  # 群组场景使用群号作为标识
     else:
@@ -512,7 +538,7 @@ async def _(bot: Bot, event: MessageEvent, args: Message = CommandArg()):
         set_preset.skip()
 
     # 检查用户是否为管理员
-    if not event.user_id in admins:
+    if event.user_id not in admins:
         await set_preset.finish("只有管理员才能设置预设。")
 
     # 提取命令参数
@@ -520,7 +546,6 @@ async def _(bot: Bot, event: MessageEvent, args: Message = CommandArg()):
 
     # 如果参数不为空
     if not arg == "":
-
         # 遍历模型列表
         for i in models:
             # 如果模型名称与参数匹配
@@ -569,7 +594,7 @@ async def _(bot: Bot, event: MessageEvent):
         presets.skip()
 
     # 检查用户是否为管理员，非管理员则发送消息并结束处理
-    if not event.user_id in admins:
+    if event.user_id not in admins:
         await presets.finish("只有管理员才能查看模型预设。")
 
     # 构建消息字符串，包含当前模型预设信息
@@ -606,7 +631,7 @@ async def _(bot: Bot, event: GroupMessageEvent, args: Message = CommandArg()):
 
     global admins
     # 检查用户是否为群成员且非管理员，是则结束处理
-    if await is_member(event, bot) and not event.user_id in admins:
+    if await is_member(event, bot) and event.user_id not in admins:
         await prompt.finish("群成员不能设置prompt.")
         return
 
@@ -691,7 +716,7 @@ async def _(bot: Bot, event: MessageEvent, matcher: Matcher):
     if not config["enable"]:
         matcher.skip()
     # 如果不是管理员用户，直接返回
-    if not event.user_id in admins:
+    if event.user_id not in admins:
         return
     global debug
     # 根据当前调试模式状态，开启或关闭调试模式，并发送通知
@@ -912,14 +937,14 @@ async def _(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
                         + int(len(message) / random.randint(80, 100))
                     )
 
-    except Exception as e:
+    except Exception:
         # 异常处理，记录错误信息并发送给管理员
         exc_type, exc_value, exc_traceback = sys.exc_info()
         logger.error(f"Exception type: {exc_type.__name__}")
-        logger.error(f"Exception message: {str(exc_value)}")
+        logger.error(f"Exception message: {exc_value!s}")
         import traceback
 
-        await send_to_admin(f"出错了！{exc_value},\n{str(exc_type)}")
+        await send_to_admin(f"出错了！{exc_value},\n{exc_type!s}")
         await send_to_admin(f"{traceback.format_exc()}")
 
         logger.error(
@@ -1048,7 +1073,7 @@ async def _(bot: Bot, event: MessageEvent, matcher: Matcher):
         )
 
         # 检查用户权限，非管理员且不在管理员列表中的用户将被拒绝
-        if member["role"] == "member" and not event.user_id in admins:
+        if member["role"] == "member" and event.user_id not in admins:
             await del_memory.send("你没有这样的力量（管理员/管理员+）")
             return
 
@@ -1076,7 +1101,19 @@ async def _(bot: Bot, event: MessageEvent, matcher: Matcher):
 
 @get_driver().on_bot_connect
 async def onConnect():
-    global config, ifenable, random_reply, random_reply_rate, keyword, admins, private_train, group_train, nature_chat_mode, enable_tokens_limit, session_max_tokens, tokens_count_mode
+    global \
+        config, \
+        ifenable, \
+        random_reply, \
+        random_reply_rate, \
+        keyword, \
+        admins, \
+        private_train, \
+        group_train, \
+        nature_chat_mode, \
+        enable_tokens_limit, \
+        session_max_tokens, \
+        tokens_count_mode
     from .conf import init
 
     bot: Bot = nonebot.get_bot()
@@ -1138,12 +1175,12 @@ async def _(event: MessageEvent, matcher: Matcher, bot: Bot):
     global running_messages, session_clear_group, session_clear_user
     """
     处理聊天事件的主函数。
-    
+
     参数:
     - event: MessageEvent - 消息事件对象，包含消息的相关信息。
     - matcher: Matcher - 用于控制事件处理流程的对象。
     - bot: Bot - 机器人对象，用于调用机器人相关API。
-    
+
     此函数负责根据配置和消息类型处理不同的聊天消息，包括群聊和私聊消息的处理。
     """
     global debug, config, nature_chat_mode
@@ -1207,7 +1244,7 @@ async def _(event: MessageEvent, matcher: Matcher, bot: Bot):
                             data["timestamp"] = time.time()
                             write_memory_data(event, data)
                             chated = await chat.send(
-                                f"如果想和我继续用刚刚的上下文聊天，快回复我✨\"继续\"✨吧！\n（超过{config['session_control_time']}分钟没理我我就会被系统抱走存档哦！）"
+                                f'如果想和我继续用刚刚的上下文聊天，快回复我✨"继续"✨吧！\n（超过{config["session_control_time"]}分钟没理我我就会被系统抱走存档哦！）'
                             )
                             session_clear_group.append(
                                 {
@@ -1327,9 +1364,9 @@ async def _(event: MessageEvent, matcher: Matcher, bot: Bot):
                     send_messages = data["memory"]["messages"].copy()
                     train = group_train.copy()
 
-                    train[
-                        "content"
-                    ] += f"\n以下是一些补充内容，如果与上面任何一条有冲突请忽略。\n{data.get('prompt', '无')}"
+                    train["content"] += (
+                        f"\n以下是一些补充内容，如果与上面任何一条有冲突请忽略。\n{data.get('prompt', '无')}"
+                    )
                     send_messages.insert(0, train)
                     try:
                         if config["matcher_function"]:
@@ -1363,7 +1400,7 @@ async def _(event: MessageEvent, matcher: Matcher, bot: Bot):
 
                         if debug:
                             await send_to_admin(
-                                f"{event.group_id}/{event.user_id}\n{event.message.extract_plain_text()}\n{type(event)}\nRESPONSE:\n{str(response)}\nraw:{debug_response}"
+                                f"{event.group_id}/{event.user_id}\n{event.message.extract_plain_text()}\n{type(event)}\nRESPONSE:\n{response!s}\nraw:{debug_response}"
                             )
                             logger.debug(data["memory"]["messages"])
                             logger.debug(str(response))
@@ -1395,15 +1432,15 @@ async def _(event: MessageEvent, matcher: Matcher, bot: Bot):
                                     )
                     except NoneBotException as e:
                         raise e
-                    except Exception as e:
-                        await chat.send(f"出错了，稍后试试（错误已反馈")
+                    except Exception:
+                        await chat.send("出错了，稍后试试（错误已反馈")
 
                         exc_type, exc_value, exc_traceback = sys.exc_info()
                         logger.error(f"Exception type: {exc_type.__name__}")
-                        logger.error(f"Exception message: {str(exc_value)}")
+                        logger.error(f"Exception message: {exc_value!s}")
                         import traceback
 
-                        await send_to_admin(f"出错了！{exc_value},\n{str(exc_type)}")
+                        await send_to_admin(f"出错了！{exc_value},\n{exc_type!s}")
                         await send_to_admin(f"{traceback.format_exc()}")
 
                         logger.error(
@@ -1444,7 +1481,7 @@ async def _(event: MessageEvent, matcher: Matcher, bot: Bot):
                         data["timestamp"] = time.time()
                         write_memory_data(event, data)
                         chated = await chat.send(
-                            f"如果想和我继续用刚刚的上下文聊天，快回复我✨\"继续\"✨吧！\n（超过{config['session_control_time']}分钟没理我我就会被系统抱走存档哦！）"
+                            f'如果想和我继续用刚刚的上下文聊天，快回复我✨"继续"✨吧！\n（超过{config["session_control_time"]}分钟没理我我就会被系统抱走存档哦！）'
                         )
                         session_clear_user.append(
                             {
@@ -1498,7 +1535,7 @@ async def _(event: MessageEvent, matcher: Matcher, bot: Bot):
                     data["memory"]["messages"].append(
                         {
                             "role": "user",
-                            "content": f"{Date}{await get_friend_info(event.user_id)}（{event.user_id}）： {str(content)if config['parse_segments'] else event.message.extract_plain_text()}",
+                            "content": f"{Date}{await get_friend_info(event.user_id)}（{event.user_id}）： {str(content) if config['parse_segments'] else event.message.extract_plain_text()}",
                         }
                     )
                     while (len(data["memory"]["messages"]) > memory_lenth_limit) or (
@@ -1553,9 +1590,9 @@ async def _(event: MessageEvent, matcher: Matcher, bot: Bot):
                             response = chat_event.model_response
                         debug_response = response
                         if debug:
-                                await send_to_admin(
-                                    f"{event.user_id}\n{type(event)}\n{event.message.extract_plain_text()}\nRESPONSE:\n{str(response)}\nraw:{debug_response}"
-                                )
+                            await send_to_admin(
+                                f"{event.user_id}\n{type(event)}\n{event.message.extract_plain_text()}\nRESPONSE:\n{response!s}\nraw:{debug_response}"
+                            )
                         message = MessageSegment.text(response)
 
                         if debug:
@@ -1580,14 +1617,14 @@ async def _(event: MessageEvent, matcher: Matcher, bot: Bot):
                                 )
                     except NoneBotException as e:
                         raise e
-                    except Exception as e:
+                    except Exception:
                         exc_type, exc_value, exc_traceback = sys.exc_info()
-                        await chat.send(f"出错了稍后试试（错误已反馈")
+                        await chat.send("出错了稍后试试（错误已反馈")
                         logger.error(f"Exception type: {exc_type.__name__}")
-                        logger.error(f"Exception message: {str(exc_value)}")
+                        logger.error(f"Exception message: {exc_value!s}")
                         import traceback
 
-                        await send_to_admin(f"出错了！{exc_value},\n{str(exc_type)}")
+                        await send_to_admin(f"出错了！{exc_value},\n{exc_type!s}")
                         await send_to_admin(f"{traceback.format_exc()} ")
                         logger.error(
                             f"Detailed exception info:\n{''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))}"
@@ -1596,15 +1633,15 @@ async def _(event: MessageEvent, matcher: Matcher, bot: Bot):
                         write_memory_data(event, data)
         except NoneBotException as e:
             raise e
-        except Exception as e:
-            await chat.send(f"出错了稍后试试吧（错误已反馈 ")
+        except Exception:
+            await chat.send("出错了稍后试试吧（错误已反馈 ")
 
             exc_type, exc_value, exc_traceback = sys.exc_info()
             logger.error(f"Exception type: {exc_type.__name__}")
-            logger.error(f"Exception message: {str(exc_value)}")
+            logger.error(f"Exception message: {exc_value!s}")
             import traceback
 
-            await send_to_admin(f"出错了！{exc_value},\n{str(exc_type)}")
+            await send_to_admin(f"出错了！{exc_value},\n{exc_type!s}")
             await send_to_admin(f"{traceback.format_exc()}")
             logger.error(
                 f"Detailed exception info:\n{''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))}"

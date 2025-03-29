@@ -1,13 +1,14 @@
 import os
-from nonebot.adapters.onebot.v11 import Bot
 from pathlib import Path
-import nonebot_plugin_localstore as store
+
+from nonebot.adapters.onebot.v11 import Bot
+
 
 __KERNEL_VERSION__: str = "V1.15.7-Public"
 # 获取当前工作目录
 current_directory: str = os.getcwd()
-config_dir = store.get_plugin_config_dir()
-data_dir = store.get_plugin_data_dir()
+config_dir: Path = Path(current_directory) / "config" / "nonebot_plugin_suggarchat"
+data_dir: Path = Path(current_directory) / "data" / "nonebot_plugin_suggarchat"
 group_memory = data_dir / "group"
 private_memory = data_dir / "private"
 main_config = config_dir / "config.json"
@@ -17,19 +18,21 @@ custom_models_dir = config_dir / "models"
 
 
 def init(bot: Bot):
-    global config_dir, data_dir, group_memory, private_memory, main_config, group_prompt, private_prompt, custom_models_dir
-    config_dir = store.get_plugin_config_dir() / bot.self_id
-    data_dir = store.get_plugin_data_dir() / bot.self_id
-    if not config_dir.exists():
-        config_dir.mkdir()
+    global \
+        config_dir, \
+        data_dir, \
+        main_config, \
+        group_prompt, \
+        private_prompt, \
+        custom_models_dir
+    config_dir = config_dir / bot.self_id
+    data_dir = data_dir / bot.self_id
+    os.makedirs(config_dir, exist_ok=True)
     group_memory = data_dir / "group"
-    if not data_dir.exists():
-        data_dir.mkdir()
-    if not group_memory.exists():
-        group_memory.mkdir()
+    os.makedirs(data_dir, exist_ok=True)
+    os.makedirs(group_memory, exist_ok=True)
     private_memory = data_dir / "private"
-    if not private_memory.exists():
-        private_memory.mkdir()
+    os.makedirs(private_memory, exist_ok=True)
     main_config = config_dir / "config.json"
     group_prompt = config_dir / "prompt_group.txt"
     private_prompt = config_dir / "prompt_private.txt"

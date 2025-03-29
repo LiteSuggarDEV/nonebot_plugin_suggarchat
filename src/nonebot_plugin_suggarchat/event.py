@@ -1,8 +1,5 @@
-from nonebot.adapters import Event as BaseEvent
 from typing_extensions import override
 from nonebot.adapters.onebot.v11 import (
-    MessageSegment,
-    Message,
     MessageEvent,
     GroupMessageEvent,
     PokeNotifyEvent,

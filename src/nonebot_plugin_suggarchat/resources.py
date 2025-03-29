@@ -1,32 +1,34 @@
-from datetime import datetime
-from typing import Any
-from nonebot.log import logger
+import copy
+from datetime import datetime as datetime
 import json
-import chardet
-import nonebot
-import jieba
-import re
+import os
 from pathlib import Path
+import re
+
+import chardet
+import jieba
+import nonebot
 from nonebot.adapters.onebot.v11 import (
-    PrivateMessageEvent,
-    GroupMessageEvent,
-    PokeNotifyEvent,
-    Message,
     Bot,
     Event,
+    GroupMessageEvent,
+    Message,
+    PokeNotifyEvent,
+    PrivateMessageEvent,
 )
+from nonebot.log import logger
+import pytz
+
 from .conf import (
-    get_custom_models_dir,
     get_config_dir,
     get_config_file_path,
+    get_custom_models_dir,
     get_group_memory_dir,
-    get_private_memory_dir,
     get_group_prompt_path,
+    get_private_memory_dir,
     get_private_prompt_path,
 )
-import os
-import copy
-import pytz
+
 
 __base_group_prompt__ = """你在纯文本环境工作，不允许使用MarkDown回复，我会提供聊天记录，你可以从这里面获取一些关键信息，比如时间与用户身份（e.g.: [管理员/群主/自己/群员][YYYY-MM-DD weekday hh:mm:ss AM/PM][昵称（QQ号）]说:<内容>），但是请不要以这个格式回复。对于消息上报我给你的有几个类型，除了文本还有,\\（戳一戳消息）\\：就是QQ的戳一戳消息是戳一戳了你，而不是我，请参与讨论。交流时不同话题尽量不使用相似句式回复，用户与你交谈的信息在<内容>。"""
 __base_private_prompt__ = """你在纯文本环境工作，不允许使用MarkDown回复，我会提供聊天记录，你可以从这里面获取一些关键信息，比如时间与用户身份（e.g.: [日期 时间]昵称（QQ：123456）说：消息 ），但是请不要以这个格式回复。对于消息上报我给你的有几个类型，除了文本还有,\\（戳一戳消息）\\：就是QQ的戳一戳消息，是戳一戳了你，而不是我，请参与讨论。交流时不同话题尽量不使用相似句式回复，现在你在聊群内工作！，用户与你交谈的信息在<内容>"""
@@ -176,18 +178,18 @@ def convert_to_utf8(file_path) -> bool:
         encoding = result["encoding"]
     if encoding is None:
         try:
-            with open(file_path, "r") as f:
+            with open(file_path) as f:
                 contents = f.read()
                 if contents.strip() == "":
                     return True
-        except Exception as e:
+        except Exception:
             logger.warning(f"无法读取文件{file_path}")
             return False
         logger.warning(f"无法检测到编码{file_path}")
         return False
 
     # 读取原文件并写入UTF-8编码的文件
-    with open(file_path, "r", encoding=encoding) as file:
+    with open(file_path, encoding=encoding) as file:
         content = file.read()
 
     # 以UTF-8编码重新写入文件
@@ -203,7 +205,7 @@ def get_models() -> list:
         Path.mkdir(custom_models_dir)
     for file in Path(custom_models_dir).glob("*.json"):
         convert_to_utf8(file)
-        with open(file, "r", encoding="utf-8") as f:
+        with open(file, encoding="utf-8") as f:
             model = json.load(f)
             model = update_dict(__default_model_conf__, model)
             models.append(model)
@@ -290,7 +292,7 @@ def get_config(no_base_prompt: bool = False) -> dict:
 
     Returns:
     dict: 配置文件，包含以下键值对{__default_config__}
-        
+
 
     """
     config_dir = get_config_dir()
@@ -308,7 +310,7 @@ def get_config(no_base_prompt: bool = False) -> dict:
         with open(str(main_config), "w", encoding="utf-8") as f:
             json.dump(__default_config__, f, ensure_ascii=False, indent=4)
     convert_to_utf8(main_config)
-    with open(str(main_config), "r", encoding="utf-8") as f:
+    with open(str(main_config), encoding="utf-8") as f:
         conf: dict = json.load(f)
     if not no_base_prompt:
         conf = replace_env_vars(conf)
@@ -332,7 +334,7 @@ def get_group_prompt() -> dict:
         with open(str(group_prompt), "w", encoding="utf-8") as f:
             f.write(prompt_old)
     if convert_to_utf8(str(group_prompt)):
-        with open(str(group_prompt), "r", encoding="utf-8") as f:
+        with open(str(group_prompt), encoding="utf-8") as f:
             prompt = f.read()
         return {"role": "system", "content": __base_group_prompt__ + prompt}
     else:
@@ -354,7 +356,7 @@ def get_private_prompt() -> dict:
         with open(str(private_prompt), "w", encoding="utf-8") as f:
             f.write(prompt_old)
     if convert_to_utf8(str(private_prompt)):
-        with open(str(private_prompt), "r", encoding="utf-8") as f:
+        with open(str(private_prompt), encoding="utf-8") as f:
             prompt = f.read()
         return {"role": "system", "content": __base_private_prompt__ + prompt}
     else:
@@ -454,26 +456,25 @@ def get_memory_data(event: Event) -> dict:
                     )
     convert_to_utf8(conf_path)
     # 读取并返回记忆数据
-    with open(str(conf_path), "r", encoding="utf-8") as f:
+    with open(str(conf_path), encoding="utf-8") as f:
         conf = json.load(f)
         logger.debug(f"读取到记忆数据{conf}")
         return conf
 
 
 def write_memory_data(event: Event, data: dict) -> None:
-
     logger.debug(f"写入记忆数据{data}")
     logger.debug(f"事件：{type(event)}")
     """
     根据事件类型将数据写入到特定的记忆数据文件中。
-    
+
     该函数根据传入的事件类型（群组消息事件或用户消息事件），将相应的数据以JSON格式写入到对应的文件中。
     对于群组消息事件，数据被写入到以群组ID命名的文件中；对于用户消息事件，数据被写入到以用户ID命名的文件中。
-    
+
     参数:
     - event: MessageEvent类型，表示一个消息事件，可以是群组消息事件或用户消息事件。
     - data: dict类型，要写入的数据，以字典形式提供。
-    
+
     返回值:
     无返回值。
     """
@@ -597,7 +598,6 @@ async def synthesize_forward_message(forward_msg: dict) -> str:
 
     # forward_msg 是一个包含多个消息段的字典+列表
     for segment in forw_msg["messages"]:
-
         nickname = segment["sender"]["nickname"]
         qq = segment["sender"]["user_id"]
         time = f"[{datetime.fromtimestamp(segment['time']).strftime('%Y-%m-%d %I:%M:%S %p')}]"

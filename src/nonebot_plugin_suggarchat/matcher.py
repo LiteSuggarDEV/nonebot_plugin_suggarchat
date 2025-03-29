@@ -1,13 +1,12 @@
-from typing_extensions import Callable, List, Awaitable, Optional, override
-import asyncio
-import inspect
-from nonebot import logger
-from nonebot.exception import ProcessException, FinishedException, StopPropagation
-from .event import SuggarEvent, FinalObject
-from . import suggar
 import sys
-from nonebot.adapters.onebot.v11 import MessageSegment, MessageEvent, PokeNotifyEvent
-from .exception import BlockException, PassException, CancelException
+import inspect
+
+from nonebot import logger
+from nonebot.exception import FinishedException, ProcessException, StopPropagation
+from collections.abc import Awaitable, Callable
+
+from .event import SuggarEvent
+from .exception import BlockException, CancelException, PassException
 
 """
 suggar matcher
@@ -20,7 +19,6 @@ priority = {}
 
 
 class SuggarMatcher:
-
     def __init__(self, event_type: str = ""):
         # 存储事件处理函数的字典
         global event_handlers, priority, handler_infos
@@ -46,7 +44,7 @@ class SuggarMatcher:
             if self.event_type == "" or self.event_type == None:
                 raise ValueError("事件类型不能为空！")
 
-        def decorator(func: Callable[[Optional[SuggarEvent]], Awaitable[None]]):
+        def decorator(func: Callable[[SuggarEvent | None], Awaitable[None]]):
             global priority, handler_infos, event_handlers
             self.handler_infos = handler_infos
             self.priority = priority
@@ -56,7 +54,7 @@ class SuggarMatcher:
                 self.handler_infos[event_type] = {}
                 self.priority[event_type] = []
             self.event_handlers[event_type].append(func)
-            if not priority_value in self.priority[event_type]:
+            if priority_value not in self.priority[event_type]:
                 self.priority[event_type].append(priority_value)
             self.priority[event_type] = sorted(self.priority[event_type])
             self.handler_infos[event_type][id(func)] = {
@@ -177,13 +175,13 @@ class SuggarMatcher:
                             return
                         except BlockException as e:
                             raise e
-                        except Exception as e:
+                        except Exception:
                             logger.error(
                                 f"在运行处理器 '{handler.__name__}'(~{file_name}:{line_number}) 时遇到了问题"
                             )
                             exc_type, exc_value, exc_traceback = sys.exc_info()
                             logger.error(f"Exception type: {exc_type.__name__}")
-                            logger.error(f"Exception message: {str(exc_value)}")
+                            logger.error(f"Exception message: {exc_value!s}")
                             import traceback
 
                             back = ""
@@ -192,7 +190,6 @@ class SuggarMatcher:
                             logger.error(back)
                             continue
                         finally:
-
                             logger.info(
                                 f"'{handler.__name__}'(~{file_name}:{line_number}任务已结束。"
                             )

@@ -10,7 +10,6 @@ dependencies = [
     "pydantic>=2.4.2",
     "nonebot-adapter-onebot>=2.0.0",
     "nonebot-plugin-localstore>=0.7",
-#    "nonebot_plugin_uninfo>=0.4.1",
     "chardet>=5.1.0",
     "typing-extensions>=4.6.0",
     "pytz>=2025.1",

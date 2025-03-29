@@ -1,12 +1,14 @@
 # 施工中。。。。。。敬请期待
-from typing_extensions import Callable
+from collections.abc import Callable
 import json
-from nonebot_plugin_suggarchat.conf import get_custom_models_dir
-from .suggar import send_to_admin, get_chat, reload_from_memory
-from . import suggar
+
 from nonebot import logger
-from .resources import get_config, save_config, get_models
-from . import resources
+
+from nonebot_plugin_suggarchat.conf import get_custom_models_dir
+
+from . import resources, suggar
+from .resources import get_config, get_models, save_config
+from .suggar import get_chat, reload_from_memory, send_to_admin
 
 
 class Config:
@@ -68,7 +70,7 @@ class Config:
 
         :param key:
         """
-        if not key in resources.__default_config__:
+        if key not in resources.__default_config__:
             resources.__default_config__[key] = None
             get_config()
             reload_from_memory()
@@ -81,7 +83,7 @@ class Config:
 
         :param key: 配置项名
         """
-        if not key in resources.__default_model_conf__:
+        if key not in resources.__default_model_conf__:
             resources.__default_model_conf__[key] = None
             get_models()
             reload_from_memory()
@@ -178,10 +180,10 @@ class Admin:
         config = self.config
         """
         检查用户是否是管理员。
-        
+
         参数:
         - user_id (int): 用户ID。
-        
+
         返回:
         - bool: 用户是否是管理员。
         """
@@ -191,10 +193,10 @@ class Admin:
         config = self.config
         """
         添加新的管理员用户ID到配置中。
-        
+
         参数:
         - user_id (int): 要添加的用户ID。
-        
+
         返回:
         - Admin: 返回Admin实例，支持链式调用。
         """
@@ -207,10 +209,10 @@ class Admin:
         config = self.config
         """
         设置管理员组ID。
-        
+
         参数:
         - group_id (int): 管理员组ID。
-        
+
         返回:
         - Admin: 返回Admin实例，支持链式调用。
         """
