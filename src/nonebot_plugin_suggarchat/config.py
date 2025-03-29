@@ -1,25 +1,18 @@
-from dataclasses import dataclass, field
 import json
 import os
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import nonebot_plugin_localstore as store
-from pydantic import BaseModel
 import tomli
 import tomli_w
-
+from pydantic import BaseModel
 
 __KERNEL_VERSION__: str = "V2.0.0-Public"
 
 # 配置目录
-CONFIG_DIR: Path = (
-    store.get_plugin_config_dir() / "config" / "nonebot_plugin_suggarchat"
-)
-DATA_DIR: Path = store.get_plugin_data_dir() / "data" / "nonebot_plugin_suggarchat"
-
-# 记忆存储路径
-GROUP_MEMORY_DIR: Path = DATA_DIR / "group"
-PRIVATE_MEMORY_DIR: Path = DATA_DIR / "private"
+CONFIG_DIR: Path = store.get_plugin_config_dir()
+DATA_DIR: Path = store.get_plugin_data_dir()
 
 
 class ModelPreset(BaseModel):
@@ -118,9 +111,8 @@ class Config(BaseModel):
 
 @dataclass
 class ConfigManager:
-    current_directory: str = os.getcwd()
-    config_dir: Path = Path(current_directory) / "config" / "nonebot_plugin_suggarchat"
-    data_dir: Path = Path(current_directory) / "data" / "nonebot_plugin_suggarchat"
+    config_dir: Path = CONFIG_DIR
+    data_dir: Path = DATA_DIR
     group_memory: Path = data_dir / "group"
     private_memory: Path = data_dir / "private"
     json_config: Path = config_dir / "config.json"
