@@ -1,10 +1,10 @@
-from typing_extensions import override
 from nonebot.adapters.onebot.v11 import (
-    MessageEvent,
-    GroupMessageEvent,
-    PokeNotifyEvent,
     Event,
+    GroupMessageEvent,
+    MessageEvent,
+    PokeNotifyEvent,
 )
+from typing_extensions import override
 
 
 class EventType:

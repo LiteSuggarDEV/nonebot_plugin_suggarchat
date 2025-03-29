@@ -1,5 +1,5 @@
-from .matcher import SuggarMatcher
 from .event import EventType
+from .matcher import SuggarMatcher
 
 
 def on_chat():

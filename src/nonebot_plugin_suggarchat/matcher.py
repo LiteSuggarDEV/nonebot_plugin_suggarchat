@@ -1,12 +1,13 @@
-import sys
+from collections.abc import Awaitable, Callable
 import inspect
+import sys
 
 from nonebot import logger
 from nonebot.exception import FinishedException, ProcessException, StopPropagation
-from collections.abc import Awaitable, Callable
 
 from .event import SuggarEvent
 from .exception import BlockException, CancelException, PassException
+
 
 """
 suggar matcher
@@ -39,9 +40,9 @@ class SuggarMatcher:
         """
         if not priority_value > 0:
             raise ValueError("事件优先级不能为0或负！")
-        if event_type == None and self.event_type != "":
+        if event_type is None and self.event_type != "":
             event_type = self.event_type
-            if self.event_type == "" or self.event_type == None:
+            if self.event_type == "" or self.event_type is None:
                 raise ValueError("事件类型不能为空！")
 
         def decorator(func: Callable[[SuggarEvent | None], Awaitable[None]]):
@@ -57,10 +58,11 @@ class SuggarMatcher:
             if priority_value not in self.priority[event_type]:
                 self.priority[event_type].append(priority_value)
             self.priority[event_type] = sorted(self.priority[event_type])
+            frame = inspect.currentframe()
             self.handler_infos[event_type][id(func)] = {
                 "func": func,
                 "signature": inspect.signature(func),
-                "frame": inspect.currentframe().f_back,
+                "frame": frame,
                 "priority": priority_value,
                 "block": block,
             }
@@ -180,7 +182,7 @@ class SuggarMatcher:
                                 f"在运行处理器 '{handler.__name__}'(~{file_name}:{line_number}) 时遇到了问题"
                             )
                             exc_type, exc_value, exc_traceback = sys.exc_info()
-                            logger.error(f"Exception type: {exc_type.__name__}")
+                            logger.error(f"Exception type: {exc_type.__name__}" if exc_type else "Exception type: None")
                             logger.error(f"Exception message: {exc_value!s}")
                             import traceback
 

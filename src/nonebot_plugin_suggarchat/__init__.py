@@ -1,12 +1,19 @@
-from nonebot.plugin import PluginMetadata
-from nonebot.plugin import require
-require("nonebot_plugin_localstore")
-from .conf import *
-from .resources import *
-from .suggar import *
-from .API import *
-from .conf import __KERNEL_VERSION__
+from nonebot.plugin import PluginMetadata, require
 
+from . import API, config, connection, event, resources, suggar
+
+
+require("nonebot_plugin_localstore")
+
+
+__all__ = [
+    "API",
+    "config",
+    "connection",
+    "event",
+    "resources",
+    "suggar",
+]
 
 __plugin_meta__ = PluginMetadata(
     name="SuggarChat 高可扩展性大模型聊天插件/框架",
