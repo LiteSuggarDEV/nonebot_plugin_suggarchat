@@ -233,11 +233,7 @@ class ConfigManager:
 
         :raises KeyError: 如果配置项已存在，则抛出异常
         """
-        if not hasattr(self.config, key):
-            setattr(self.config, key, None)
-            self.save_config()
-        else:
-            raise KeyError(f"配置项 {key} 已存在")
+        self._register_config_key(key, "配置项 ")
 
     def reg_model_config(self, key: str):
         """
@@ -247,11 +243,13 @@ class ConfigManager:
 
         :raises KeyError: 如果配置项已存在，则抛出异常
         """
-        if not hasattr(self.config, key):
-            setattr(self.config, key, None)
-            self.save_config()
-        else:
-            raise KeyError(f"模型配置项 {key} 已存在")
+        self._register_config_key(key, "模型配置项 ")
+
+    def _register_config_key(self, key, arg1):
+        if hasattr(self.config, key):
+            raise KeyError(f"{arg1}{key} 已存在")
+        setattr(self.config, key, None)
+        self.save_config()
 
 
 config_manager = ConfigManager()
