@@ -13,7 +13,7 @@ from nonebot_plugin_suggarchat.on_event import (
 async def _(event: BeforeChatEvent, matcher: SuggarMatcher):
     if event.user_id != 11451419198:
         # 这里模拟不符合条件的场景
-        bot = get_bot()
+        bot = get_bot(self_id=str(event.get_nonebot_event().self_id))
         nbevent = event.get_nonebot_event()
         await bot.send(event=nbevent, message="你没有权限聊天")
         matcher.cancel()

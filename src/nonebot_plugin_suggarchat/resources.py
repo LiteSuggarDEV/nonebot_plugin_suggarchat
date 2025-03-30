@@ -5,7 +5,6 @@ from pathlib import Path
 
 import chardet
 import jieba
-import nonebot
 import pytz
 from nonebot.adapters import Bot
 from nonebot.adapters.onebot.v11 import (
@@ -274,8 +273,7 @@ def write_memory_data(event: Event, data: dict) -> None:
         json.dump(data, f, ensure_ascii=True)
 
 
-async def get_friend_info(qq_number: int) -> str:
-    bot = nonebot.get_bot()  # 假设只有一个Bot实例运行
+async def get_friend_info(qq_number: int, bot: Bot) -> str:
     friend_list = await bot.get_friend_list()
 
     return next(
@@ -286,12 +284,6 @@ async def get_friend_info(qq_number: int) -> str:
         ),
         "",
     )
-
-
-async def get_friend_qq_list():
-    bot = nonebot.get_bot()
-    friend_list = await bot.get_friend_list()
-    return [friend["user_id"] for friend in friend_list]
 
 
 def split_list(lst: list, threshold: int) -> list:
@@ -306,19 +298,6 @@ def split_list(lst: list, threshold: int) -> list:
         return [lst]
 
     return [lst[i : i + threshold] for i in range(0, len(lst), threshold)]
-
-
-async def get_group_member_qq_numbers(group_id: int) -> list[int]:
-    """
-    获取指定群组的所有成员QQ号列表
-
-    :param group_id: 群组ID
-    :return: 成员QQ号列表
-    """
-    bot = nonebot.get_bot()  # 获取当前机器人实例
-    member_list = await bot.get_group_member_list(group_id=group_id)
-
-    return [member["user_id"] for member in member_list]
 
 
 async def is_same_day(timestamp1: int, timestamp2: int) -> bool:

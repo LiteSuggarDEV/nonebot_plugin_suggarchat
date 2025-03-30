@@ -819,7 +819,7 @@ async def _(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
                             )
 
         else:
-            name = get_friend_info(event.user_id)
+            name = get_friend_info(event.user_id, bot)
             send_messages = [
                 {"role": "system", "content": f"{config_manager.private_train}"},
                 {
@@ -1407,7 +1407,7 @@ async def _(event: MessageEvent, matcher: Matcher, bot: Bot):
                     data["memory"]["messages"].append(
                         {
                             "role": "user",
-                            "content": f"{Date}{await get_friend_info(event.user_id)}（{event.user_id}）： {str(content) if config_manager.config.parse_segments else event.message.extract_plain_text()}",
+                            "content": f"{Date}{await get_friend_info(event.user_id, bot=bot)}（{event.user_id}）： {str(content) if config_manager.config.parse_segments else event.message.extract_plain_text()}",
                         }
                     )
                     while (len(data["memory"]["messages"]) > memory_lenth_limit) or (
