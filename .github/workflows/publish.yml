@@ -28,13 +28,14 @@ jobs:
           pyproject-path: "./pyproject.toml"
 
       - name: Publish to PyPI
-        if: ${{ steps.versioncheck.outputs.local_version_is_higher != 'true' }}
+        if: ${{ steps.versioncheck.outputs.local_version_is_higher == 'true' }}
         run: |
           uv build
           uv publish --token ${{ secrets.PYPI_API_TOKEN }}
 
       - name: Release
-        uses: softprops/action-gh-release@v1
+        if: ${{ steps.versioncheck.outputs.local_version_is_higher == 'true' }}
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.versioncheck.outputs.local_version }}
           name: ${{ steps.versioncheck.outputs.local_version }}
