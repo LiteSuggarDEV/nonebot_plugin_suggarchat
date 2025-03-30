@@ -35,7 +35,7 @@ class ModelPreset(BaseModel):
             json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)
 
 
-class Config(BaseModel):
+class Config(BaseModel, extra="allow"):
     preset: str = ModelPreset().model
     memory_lenth_limit: int = 50
     enable: bool = False
@@ -225,30 +225,28 @@ class ConfigManager:
         else:
             raise KeyError(f"配置项 {key} 不存在")
 
-    def register_config(self, key: str):
+    def register_config(self, key: str, default_value=None):
         """
         注册配置项
 
         :param key: 配置项的名称
 
-        :raises KeyError: 如果配置项已存在，则抛出异常
         """
-        self._register_config_key(key, "配置项 ")
+        self._register_config_key(key, "配置项 ", default_value=default_value)
 
-    def reg_model_config(self, key: str):
+    def reg_model_config(self, key: str, default_value=None):
         """
         注册模型配置项
 
         :param key: 配置项的名称
 
-        :raises KeyError: 如果配置项已存在，则抛出异常
         """
-        self._register_config_key(key, "模型配置项 ")
+        self._register_config_key(key, "模型配置项 ", default_value=default_value)
 
-    def _register_config_key(self, key, arg1):
-        if hasattr(self.config, key):
-            raise KeyError(f"{arg1}{key} 已存在")
-        setattr(self.config, key, None)
+    def _register_config_key(self, key, arg1, default_value=None):
+        if default_value is None:
+            default_value = "null"
+        setattr(self.config, key, default_value)
         self.save_config()
 
 

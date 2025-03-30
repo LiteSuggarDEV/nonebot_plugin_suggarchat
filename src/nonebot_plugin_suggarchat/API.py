@@ -24,7 +24,7 @@ class Config(ConfigManager):
 
         :raises KeyError: 如果配置项已存在，则抛出异常
         """
-        return super().register_config(key)
+        return config_manager.register_config(key)
 
 
 class Adapter:
@@ -40,8 +40,6 @@ class Adapter:
         """
         注册一个适配器。
         """
-        if not callable(func):
-            raise TypeError("适配器必须是可调用的")
         if protocol in suggar.protocols_adapters:
             raise ValueError("协议适配器已存在")
         suggar.protocols_adapters[protocol] = func

@@ -2,6 +2,7 @@ from nonebot import get_driver, logger
 from nonebot.adapters import Bot
 
 from .config import __KERNEL_VERSION__, config_manager
+from .hook_manager import run_hooks
 
 driver = get_driver()
 
@@ -16,6 +17,9 @@ async def onConnect(bot: Bot):
     logger.info(f"群聊记忆文件目录：{config_manager.group_memory}")
     logger.info(f"私聊记忆文件目录：{config_manager.private_memory}")
     logger.info(f"模型预设文件目录：{config_manager.custom_models_dir}")
+
+    # 执行 hook 函数
+    await run_hooks(bot)
 
 
 @driver.on_startup
