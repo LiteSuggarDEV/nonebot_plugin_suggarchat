@@ -8,23 +8,7 @@ from .config import Config as Conf
 from .config import ConfigManager, config_manager
 from .suggar import get_chat, send_to_admin
 
-
-class Config(ConfigManager):
-    def __init__(self):
-        """
-        初始化 Config 类的新实例。
-        """
-        pass
-
-    def reg_config(self, key: str):
-        """
-        注册配置项
-
-        :param key: 配置项的名称
-
-        :raises KeyError: 如果配置项已存在，则抛出异常
-        """
-        return config_manager.register_config(key)
+Config: ConfigManager = config_manager
 
 
 class Adapter:
