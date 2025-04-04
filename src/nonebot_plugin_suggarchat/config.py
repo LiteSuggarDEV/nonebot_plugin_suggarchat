@@ -245,7 +245,6 @@ class ConfigManager:
                 "w", encoding="utf-8"
             ) as f:
                 f.write(prompt)
-        self.private_train = {"role": "system", "content": prompt}
 
         # group_train
         if self.group_prompt.is_file():
@@ -255,12 +254,12 @@ class ConfigManager:
         if not (self.group_prompts / "default.txt").is_file():
             with (self.group_prompts / "default.txt").open("w", encoding="utf-8") as f:
                 f.write(prompt)
-        self.group_train = {"role": "system", "content": prompt}
 
         self.get_models(cache=False)
         self.get_prompts(cache=False)
+        self.load_prompt()
 
-    def get_models(self, cache: bool = True) -> list[ModelPreset]:
+    def get_models(self, cache: bool = False) -> list[ModelPreset]:
         """获取模型列表"""
         if cache and self.models:
             return [model[0] for model in self.models]
@@ -269,7 +268,7 @@ class ConfigManager:
             self.models.append((ModelPreset.load(file), file.stem))
         return [model[0] for model in self.models]
 
-    def get_prompts(self, cache: bool = True) -> Prompts:
+    def get_prompts(self, cache: bool = False) -> Prompts:
         """获取提示词"""
         if cache and self.prompts:
             return self.prompts
@@ -291,6 +290,25 @@ class ConfigManager:
         self.prompts.save_group(self.group_prompts)
 
         return self.prompts
+
+    def load_prompt(self):
+        """加载提示词，匹配预设"""
+        for prompt in self.prompts.group:
+            if prompt.name == self.config.group_prompt_character:
+                self.group_train = {"role": "system", "content": prompt.text}
+                break
+        else:
+            raise ValueError(
+                f"没有找到名称为 {self.config.group_prompt_character} 的群组提示词"
+            )
+        for prompt in self.prompts.private:
+            if prompt.name == self.config.private_prompt_character:
+                self.private_train = {"role": "system", "content": prompt.text}
+                break
+        else:
+            raise ValueError(
+                f"没有找到名称为 {self.config.private_prompt_character} 的私聊提示词"
+            )
 
     def reload_config(self):
         """重加载配置"""
