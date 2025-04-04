@@ -2,6 +2,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import nonebot_plugin_localstore as store
 import tomli
@@ -92,14 +93,24 @@ class Config(BaseModel, extra="allow"):
     session_control: bool = False
     session_control_time: int = 60
     session_control_history: int = 10
+    group_prompt_character: str = "default"
+    private_prompt_character: str = "default"
 
     # Toml配置文件路径
     @classmethod
     def load_from_toml(cls, path: Path) -> "Config":
         """从 TOML 文件加载配置"""
-        with path.open("rb") as f:
-            data: dict = tomli.load(f)
-        return cls(**data)
+        if path.exists():
+            with path.open("rb") as f:
+                data: dict[str, Any] = tomli.load(f)
+            # 自动更新配置文件
+            current_config = cls().model_dump()
+            updated_config = {**current_config, **data}
+            config_instance = cls(**updated_config)
+            if current_config != updated_config:
+                config_instance.save_to_toml(path)
+            return config_instance
+        return cls()
 
     @classmethod
     def load_from_json(cls, path: Path) -> "Config":
@@ -129,10 +140,12 @@ class ConfigManager:
     data_dir: Path = DATA_DIR
     group_memory: Path = data_dir / "group"
     private_memory: Path = data_dir / "private"
-    json_config: Path = config_dir / "config.json"
+    json_config: Path = config_dir / "config.json"  # 兼容旧版本
     toml_config: Path = config_dir / "config.toml"
-    group_prompt: Path = config_dir / "prompt_group.txt"
-    private_prompt: Path = config_dir / "prompt_private.txt"
+    group_prompt: Path = config_dir / "prompt_group.txt"  # 兼容旧版本
+    private_prompt: Path = config_dir / "prompt_private.txt"  # 兼容旧版本
+    private_prompts: Path = config_dir / "private_prompts"
+    group_prompts: Path = config_dir / "group_prompts"
     custom_models_dir: Path = config_dir / "models"
     private_train: dict = field(default_factory=dict)
     group_train: dict = field(default_factory=dict)
@@ -155,6 +168,10 @@ class ConfigManager:
         self.toml_config = self.config_dir / "config.toml"
         self.group_prompt = self.config_dir / "prompt_group.txt"
         self.private_prompt = self.config_dir / "prompt_private.txt"
+        self.private_prompts = self.config_dir / "private_prompts"
+        self.group_prompts = self.config_dir / "group_prompts"
+        os.makedirs(self.private_prompts, exist_ok=True)
+        os.makedirs(self.group_prompts, exist_ok=True)
         self.custom_models_dir = self.config_dir / "models"
         os.makedirs(self.custom_models_dir, exist_ok=True)
 
@@ -166,14 +183,20 @@ class ConfigManager:
             # 判断是否有抛弃的字段需要转移
             if "private_train" in data:
                 prompt_old = data["private_train"]["content"]
-                with self.private_prompt.open("w", encoding="utf-8") as f:
-                    f.write(prompt_old)
+                if not (self.private_prompts / "default.txt").is_file():
+                    with (self.private_prompts / "default.txt").open(
+                        "w", encoding="utf-8"
+                    ) as f:
+                        f.write(prompt_old)
                 del data["private_train"]
 
             if "group_train" in data:
                 prompt_old = data["group_train"]["content"]
-                with self.group_prompt.open("w", encoding="utf-8") as f:
-                    f.write(prompt_old)
+                if not (self.group_prompts / "default.txt").is_file():
+                    with (self.group_prompts / "default.txt").open(
+                        "w", encoding="utf-8"
+                    ) as f:
+                        f.write(prompt_old)
                 del data["group_train"]
 
             Config(**data).save_to_toml(self.toml_config)
@@ -187,19 +210,25 @@ class ConfigManager:
             self.config.save_to_toml(self.toml_config)
 
         # private_train
-        if not self.private_prompt.is_file():
-            with self.private_prompt.open("w", encoding="utf-8") as f:
-                f.write("")
-        with self.private_prompt.open("r", encoding="utf-8") as f:
-            prompt = f.read()
+        if self.private_prompt.is_file():
+            with self.private_prompt.open("r", encoding="utf-8") as f:
+                prompt = f.read()
+            os.rename(self.private_prompt, self.private_prompt.with_suffix(".old"))
+        if not (self.private_prompts / "default.txt").is_file():
+            with (self.private_prompts / "default.txt").open(
+                "w", encoding="utf-8"
+            ) as f:
+                f.write(prompt)
         self.private_train = {"role": "system", "content": prompt}
 
         # group_train
-        if not self.group_prompt.is_file():
-            with self.group_prompt.open("w", encoding="utf-8") as f:
-                f.write("")
-        with self.group_prompt.open("r", encoding="utf-8") as f:
-            prompt = f.read()
+        if self.group_prompt.is_file():
+            with self.group_prompt.open("r", encoding="utf-8") as f:
+                prompt = f.read()
+            os.rename(self.group_prompt, self.group_prompt.with_suffix(".old"))
+        if not (self.group_prompts / "default.txt").is_file():
+            with (self.group_prompts / "default.txt").open("w", encoding="utf-8") as f:
+                f.write(prompt)
         self.group_train = {"role": "system", "content": prompt}
 
         self.get_models(cache=False)
