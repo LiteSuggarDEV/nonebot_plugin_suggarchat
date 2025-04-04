@@ -385,10 +385,7 @@ async def _(event: MessageEvent, args: Message = CommandArg()):
                     if i.name == arg_list[1]:
                         # 设置群组的提示词预设
                         config_manager.config.group_prompt_character = i.name
-                        config_manager.group_train = {
-                            "role": "system",
-                            "content": i.text,
-                        }
+                        config_manager.load_prompt()
                         config_manager.save_config()
                         await choose_prompt.finish(
                             f"已设置群组的提示词预设为：{i.name}"
@@ -416,10 +413,7 @@ async def _(event: MessageEvent, args: Message = CommandArg()):
                     if i.name == arg_list[1]:
                         # 设置私聊的提示词预设
                         config_manager.config.private_prompt_character = i.name
-                        config_manager.private_train = {
-                            "role": "system",
-                            "content": i.text,
-                        }
+                        config_manager.load_prompt()
                         config_manager.save_config()
                         await choose_prompt.finish(
                             f"已设置私聊的提示词预设为：{i.name}"
