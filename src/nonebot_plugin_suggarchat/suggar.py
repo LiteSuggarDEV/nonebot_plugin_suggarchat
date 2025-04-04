@@ -357,6 +357,93 @@ chat = on_message(
 )  # 不再在此处判断是否触发,转到rule方法
 debug_handle = on_message(rule=to_me(), priority=10, block=False)
 recall = on_notice()
+# 可选择prompt响应器
+choose_prompt = on_command("choose_prompt", priority=10, block=True)
+
+
+@choose_prompt.handle()
+async def _(event: MessageEvent, args: Message = CommandArg()):
+    """处理选择提示词的命令"""
+    # 检查是否启用功能，未启用则跳过处理
+    if not config_manager.config.enable:
+        choose_prompt.skip()
+
+    # 检查用户是否为管理员，非管理员则结束处理
+    if event.user_id not in config_manager.config.admins:
+        await choose_prompt.finish("只有管理员才能设置预设。")
+
+    # 提取命令参数
+    arg_list = args.extract_plain_text().strip().split()
+
+    # 检查参数是否为空
+    if len(arg_list) >= 1:
+        # 如果参数为"group"，则设置群组的提示词预设
+        if arg_list[0] == "group":
+            if len(arg_list) >= 2:
+                # 遍历模型列表，查找匹配的预设名称
+                for i in config_manager.get_prompts().group:
+                    if i.name == arg_list[1]:
+                        # 设置群组的提示词预设
+                        config_manager.config.group_prompt_character = i.name
+                        config_manager.group_train = {
+                            "role": "system",
+                            "content": i.text,
+                        }
+                        config_manager.save_config()
+                        await choose_prompt.finish(
+                            f"已设置群组的提示词预设为：{i.name}"
+                        )
+                else:
+                    # 如果未找到匹配的预设名称，提示用户
+                    await choose_prompt.finish(
+                        "未找到预设，请输入/choose_prompt group查看预设列表"
+                    )
+            else:
+                # 输出可选的预设名称
+                msg = "可选的预设名称：\n"
+                for index, i in enumerate(config_manager.get_prompts().group):
+                    current_marker = (
+                        " (当前)"
+                        if i.name == config_manager.config.group_prompt_character
+                        else ""
+                    )
+                    msg += f"{index + 1}). {i.name}{current_marker}\n"
+                await choose_prompt.finish(msg)
+        elif arg_list[0] == "private":
+            if len(arg_list) >= 2:
+                # 遍历模型列表，查找匹配的预设名称
+                for i in config_manager.get_prompts().private:
+                    if i.name == arg_list[1]:
+                        # 设置私聊的提示词预设
+                        config_manager.config.private_prompt_character = i.name
+                        config_manager.private_train = {
+                            "role": "system",
+                            "content": i.text,
+                        }
+                        config_manager.save_config()
+                        await choose_prompt.finish(
+                            f"已设置私聊的提示词预设为：{i.name}"
+                        )
+                else:
+                    # 如果未找到匹配的预设名称，提示用户
+                    await choose_prompt.finish(
+                        "未找到预设，请输入/choose_prompt private查看预设列表"
+                    )
+            else:
+                # 输出可选的预设名称
+                msg = "可选的预设名称：\n"
+                for index, i in enumerate(config_manager.get_prompts().private):
+                    current_marker = (
+                        " (当前)"
+                        if i.name == config_manager.config.private_prompt_character
+                        else ""
+                    )
+                    msg += f"{index + 1}). {i.name}{current_marker}\n"
+                await choose_prompt.finish(msg)
+    else:
+        msg = f"当前群组的提示词预设：{config_manager.config.group_prompt_character}\n"
+        msg += f"当前私聊的提示词预设：{config_manager.config.private_prompt_character}"
+        await choose_prompt.finish(msg)
 
 
 @sessions.handle()
@@ -582,7 +669,6 @@ async def _(bot: Bot, event: GroupMessageEvent, args: Message = CommandArg()):
         and event.user_id not in config_manager.config.admins
     ):
         await prompt.finish("群成员不能设置prompt.")
-        return
 
     data = get_memory_data(event)
     arg = args.extract_plain_text().strip()

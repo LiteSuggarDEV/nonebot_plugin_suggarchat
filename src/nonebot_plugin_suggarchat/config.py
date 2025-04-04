@@ -135,6 +135,30 @@ class Config(BaseModel, extra="allow"):
 
 
 @dataclass
+class Prompt:
+    text: str = ""
+    name: str = "default"
+
+
+@dataclass
+class Prompts:
+    group: list[Prompt] = field(default_factory=list[Prompt])
+    private: list[Prompt] = field(default_factory=list[Prompt])
+
+    def save_group(self, path: Path):
+        """保存群组提示词"""
+        for prompt in self.group:
+            with (path / f"{prompt.name}.txt").open("w", encoding="utf-8") as f:
+                f.write(prompt.text)
+
+    def save_private(self, path: Path):
+        """保存私聊提示词"""
+        for prompt in self.private:
+            with (path / f"{prompt.name}.txt").open("w", encoding="utf-8") as f:
+                f.write(prompt.text)
+
+
+@dataclass
 class ConfigManager:
     config_dir: Path = CONFIG_DIR
     data_dir: Path = DATA_DIR
@@ -151,6 +175,8 @@ class ConfigManager:
     group_train: dict = field(default_factory=dict)
     config: Config = field(default_factory=Config)
     models: list[tuple[ModelPreset, str]] = field(default_factory=list)
+
+    prompts: Prompts = field(default_factory=Prompts)
 
     def load(self, bot_id: str):
         """初始化配置目录"""
@@ -232,6 +258,7 @@ class ConfigManager:
         self.group_train = {"role": "system", "content": prompt}
 
         self.get_models(cache=False)
+        self.get_prompts(cache=False)
 
     def get_models(self, cache: bool = True) -> list[ModelPreset]:
         """获取模型列表"""
@@ -239,8 +266,31 @@ class ConfigManager:
             return [model[0] for model in self.models]
         self.models.clear()
         for file in self.custom_models_dir.glob("*.json"):
-            self.models.append((ModelPreset.load(file), file.name))
+            self.models.append((ModelPreset.load(file), file.stem))
         return [model[0] for model in self.models]
+
+    def get_prompts(self, cache: bool = True) -> Prompts:
+        """获取提示词"""
+        if cache and self.prompts:
+            return self.prompts
+        self.prompts = Prompts()
+        for file in self.private_prompts.glob("*.txt"):
+            with file.open("r", encoding="utf-8") as f:
+                prompt = f.read()
+            self.prompts.private.append(Prompt(prompt, file.stem))
+        for file in self.group_prompts.glob("*.txt"):
+            with file.open("r", encoding="utf-8") as f:
+                prompt = f.read()
+            self.prompts.group.append(Prompt(prompt, file.stem))
+        if not self.prompts.private:
+            self.prompts.private.append(Prompt("", "default"))
+        if not self.prompts.group:
+            self.prompts.group.append(Prompt("", "default"))
+
+        self.prompts.save_private(self.private_prompts)
+        self.prompts.save_group(self.group_prompts)
+
+        return self.prompts
 
     def reload_config(self):
         """重加载配置"""
@@ -291,7 +341,7 @@ class ConfigManager:
         for model in self.models:
             if not hasattr(model[0], key):
                 setattr(model[0], key, default_value)
-            model[0].save(self.custom_models_dir / model[1])
+            model[0].save(self.custom_models_dir / f"{model[1]}.json")
 
 
 config_manager = ConfigManager()
