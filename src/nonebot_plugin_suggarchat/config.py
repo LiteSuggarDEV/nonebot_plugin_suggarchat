@@ -142,9 +142,8 @@ class Prompt:
 
 @dataclass
 class Prompts:
-    group: list[Prompt] = field(default_factory=list[Prompt])
-    private: list[Prompt] = field(default_factory=list[Prompt])
-
+    group: list[Prompt] = field(default_factory=list)
+    private: list[Prompt] = field(default_factory=list)
     def save_group(self, path: Path):
         """保存群组提示词"""
         for prompt in self.group:
