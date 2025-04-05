@@ -239,6 +239,7 @@ class ConfigManager:
             self.config.save_to_toml(self.toml_config)
 
         # private_train
+        prompt = ""
         if self.private_prompt.is_file():
             with self.private_prompt.open("r", encoding="utf-8") as f:
                 prompt = f.read()
@@ -250,6 +251,7 @@ class ConfigManager:
                 f.write(prompt)
 
         # group_train
+        prompt = ""
         if self.group_prompt.is_file():
             with self.group_prompt.open("r", encoding="utf-8") as f:
                 prompt = f.read()
