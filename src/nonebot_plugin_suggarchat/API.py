@@ -4,7 +4,7 @@ from nonebot import logger
 
 from .config import Config as Conf
 from .config import ConfigManager, config_manager
-from .suggar import chat_manager
+from .chatmanager import chat_manager
 from .utils import get_chat, protocols_adapters, send_to_admin
 
 Config: ConfigManager = config_manager

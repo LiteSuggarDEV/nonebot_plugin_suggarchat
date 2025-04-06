@@ -14,6 +14,7 @@ from nonebot_plugin_suggarchat.chatmanager import chat_manager
 from nonebot_plugin_suggarchat.config import Config
 
 from .config import config_manager
+from .utils import openai_get_chat
 
 
 async def send_to_admin(msg: str, bot: Bot | None = None) -> None:
