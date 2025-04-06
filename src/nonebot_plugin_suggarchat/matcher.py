@@ -181,7 +181,11 @@ class SuggarMatcher:
                                 f"在运行处理器 '{handler.__name__}'(~{file_name}:{line_number}) 时遇到了问题"
                             )
                             exc_type, exc_value, exc_traceback = sys.exc_info()
-                            logger.error(f"Exception type: {exc_type.__name__}" if exc_type else "Exception type: None")
+                            logger.error(
+                                f"Exception type: {exc_type.__name__}"
+                                if exc_type
+                                else "Exception type: None"
+                            )
                             logger.error(f"Exception message: {exc_value!s}")
                             import traceback
 

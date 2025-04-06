@@ -148,6 +148,7 @@ class Prompt:
 class Prompts:
     group: list[Prompt] = field(default_factory=list)
     private: list[Prompt] = field(default_factory=list)
+
     def save_group(self, path: Path):
         """保存群组提示词"""
         for prompt in self.group:
@@ -339,6 +340,7 @@ class ConfigManager:
             self.save_config()
         else:
             raise KeyError(f"配置项 {key} 不存在")
+
     def register_config(self, key: str, default_value=None):
         """
         注册配置项
