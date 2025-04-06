@@ -1,6 +1,8 @@
 import inspect
 import sys
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from typing import Any
 
 from nonebot import logger
 from nonebot.exception import FinishedException, ProcessException, StopPropagation
@@ -12,22 +14,25 @@ from .exception import BlockException, CancelException, PassException
 suggar matcher
 用于触发Suggar中间件事件
 """
-event_handlers = {}
-handler_infos = {}
-matchers_data = {}
-priority = {}
 
+
+@dataclass
+class EventRegistry:
+    event_handlers: dict = field(default_factory=dict)
+    handler_infos: dict= field(default_factory=dict)
+    priority: dict = field(default_factory=dict)
+
+event_registry = EventRegistry()
 
 class SuggarMatcher:
     def __init__(self, event_type: str = ""):
         # 存储事件处理函数的字典
-        global event_handlers, priority, handler_infos
-        self.event_handlers = event_handlers
-        self.handler_infos = handler_infos
+        self.event_handlers = event_registry.event_handlers
+        self.handler_infos = event_registry.handler_infos
         self.event_type = event_type
         self.event: SuggarEvent
         self.processing_message: list
-        self.priority = priority
+        self.priority = event_registry.priority
 
     def handle(self, event_type=None, priority_value: int = 10, block=False):
         """
@@ -45,10 +50,9 @@ class SuggarMatcher:
                 raise ValueError("事件类型不能为空！")
 
         def decorator(func: Callable[[SuggarEvent | None], Awaitable[None]]):
-            global priority, handler_infos, event_handlers
-            self.handler_infos = handler_infos
-            self.priority = priority
-            self.event_handlers = event_handlers
+            self.handler_infos = event_registry.handler_infos
+            self.priority = event_registry.priority
+            self.event_handlers = event_registry.event_handlers
             if event_type not in self.event_handlers:
                 self.event_handlers[event_type] = []
                 self.handler_infos[event_type] = {}

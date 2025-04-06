@@ -8,7 +8,7 @@ from .config import config_manager
 from .hook_manager import run_hooks
 
 driver = get_driver()
-__KERNEL_VERSION__ = "unknown"
+
 
 @driver.on_bot_connect
 async def onConnect(bot: Bot):
@@ -27,10 +27,10 @@ async def onConnect(bot: Bot):
 
 @driver.on_startup
 async def onEnable():
-    global __KERNEL_VERSION__
     import subprocess
     import sys
 
+    kernel_version = "unknown"
     try:
         process = await asyncio.create_subprocess_exec(
             sys.executable,
@@ -43,13 +43,14 @@ async def onEnable():
         )
         stdout, _ = await process.communicate()
         try:
-            __KERNEL_VERSION__ = stdout.decode("utf-8").split("\n")[1].split(": ")[1]
+            kernel_version = stdout.decode("utf-8").split("\n")[1].split(": ")[1]
         except IndexError:
-            __KERNEL_VERSION__ = "unknown"
+            kernel_version = "unknown"
     except subprocess.CalledProcessError:
-        __KERNEL_VERSION__ = "unknown"
+        kernel_version = "unknown"
     except Exception:
-        __KERNEL_VERSION__ = "unknown"
-    config.__KERNEL_VERSION__ = __KERNEL_VERSION__
-    logger.info(f"NONEBOT PLUGIN SUGGARCHAT {__KERNEL_VERSION__}")
+        kernel_version = "unknown"
+
+    config.__KERNEL_VERSION__ = kernel_version
+    logger.info(f"NONEBOT PLUGIN SUGGARCHAT {kernel_version}")
     logger.info("Start successfully!Waitting for bot connection...")
