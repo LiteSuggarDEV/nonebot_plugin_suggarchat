@@ -322,10 +322,7 @@ class ChatEvent(SuggarEvent):
         返回:
         字符串，如果是群聊消息事件，则返回"group"，否则返回"private"。
         """
-        if isinstance(self._nbevent, GroupMessageEvent):
-            return "group"
-        else:
-            return "private"
+        return "group" if isinstance(self._nbevent, GroupMessageEvent) else "private"
 
 
 class PokeEvent(SuggarEvent):
@@ -372,10 +369,7 @@ class PokeEvent(SuggarEvent):
     @override
     def get_event_on_location(self):
         # 重写get_event_on_location方法，判断戳一戳事件发生的地点是群聊还是私聊
-        if PokeNotifyEvent.group_id:
-            return "group"
-        else:
-            return "private"
+        return "group" if PokeNotifyEvent.group_id else "private"
 
 
 class BeforePokeEvent(PokeEvent):

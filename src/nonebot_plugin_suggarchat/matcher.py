@@ -2,7 +2,6 @@ import inspect
 import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
 
 from nonebot import logger
 from nonebot.exception import FinishedException, ProcessException, StopPropagation
