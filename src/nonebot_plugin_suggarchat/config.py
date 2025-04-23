@@ -185,12 +185,12 @@ class ConfigManager:
     def load(self, bot_id: str):
         """初始化配置目录"""
         self.bot_config_dir = self.config_dir / bot_id
-        self.data_dir = self.data_dir / bot_id
+        self.bot_data_dir = self.bot_data_dir / bot_id
         os.makedirs(self.bot_config_dir, exist_ok=True)
-        os.makedirs(self.data_dir, exist_ok=True)
+        os.makedirs(self.bot_data_dir, exist_ok=True)
 
-        self.group_memory = self.data_dir / "group"
-        self.private_memory = self.data_dir / "private"
+        self.group_memory = self.bot_data_dir / "group"
+        self.private_memory = self.bot_data_dir / "private"
         os.makedirs(self.group_memory, exist_ok=True)
         os.makedirs(self.private_memory, exist_ok=True)
 
