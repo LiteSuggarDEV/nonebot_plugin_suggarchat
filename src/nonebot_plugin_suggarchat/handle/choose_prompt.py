@@ -26,7 +26,7 @@ async def choose_prompt(
         if len(arg_list) >= 2:
             for i in config_manager.get_prompts().group:
                 if i.name == arg_list[1]:
-                    config_manager.config.group_prompt_character = i.name
+                    config_manager.ins_config.group_prompt_character = i.name
                     config_manager.load_prompt()
                     config_manager.save_config()
                     await matcher.finish(f"已设置群组提示词为：{i.name}")
@@ -39,7 +39,7 @@ async def choose_prompt(
         if len(arg_list) >= 2:
             for i in config_manager.get_prompts().private:
                 if i.name == arg_list[1]:
-                    config_manager.config.private_prompt_character = i.name
+                    config_manager.ins_config.private_prompt_character = i.name
                     config_manager.load_prompt()
                     config_manager.save_config()
                     await matcher.finish(f"已设置私聊提示词为：{i.name}")
