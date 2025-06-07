@@ -385,15 +385,16 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         memory_l = [train, *copy.deepcopy(data["memory"]["messages"].copy())]
         full_string = ""
         for st in memory_l:
-            full_string += (
-                st["content"]
-                if isinstance(st["content"], str)
-                else "".join(
-                    s["content"]["input_text"]
-                    for s in st["content"]
-                    if s["type"] == "input_text"
-                )
-            )
+            if not st["content"]:
+                logger.error("API返回内容错误,请检查api!")
+            elif isinstance(st["content"], str):
+                full_string += st["content"]
+            else:
+                temp_string = ""
+                for s in st["content"]:
+                    if s["type"] == "input_text":
+                        temp_string += s["content"]["input_text"]
+                full_string += temp_string
         tokens = hybrid_token_count(
             full_string, config_manager.config.tokens_count_mode
         )
