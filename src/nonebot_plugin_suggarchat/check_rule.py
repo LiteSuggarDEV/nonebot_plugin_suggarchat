@@ -1,4 +1,5 @@
 import random
+import time
 
 from nonebot.adapters import Bot
 from nonebot.adapters.onebot.v11.event import (
@@ -42,12 +43,16 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
         # 根据概率决定是否回复
         rand = random.random()
         rate = config_manager.config.probability
-        if rand <= rate:
-            return True
 
         # 获取内存数据
         memory_data: dict = get_memory_data(event)
-
+        if rand <= rate and (
+            config_manager.config.global_fake_people
+            or memory_data.get("fake_people", False)
+        ):
+            memory_data["timestamp"] = time.time()
+            write_memory_data(event, memory_data)
+            return True
         # 合成消息内容
         content = await synthesize_message(message, bot)
 
@@ -77,9 +82,24 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
 
         # 生成消息内容并记录到内存
         content_message = f"[{role}][{Date}][{user_name}（{user_id}）]说:{content}"
-        memory_data["memory"]["messages"].append(
-            {"role": "user", "content": content_message}
-        )
+        message_l = memory_data["memory"]["messages"]  # type: list[dict[str, str]]
+        if not message_l:
+            message_l.append(
+                {"role": "user", "content": "<FORWARD_MSG>\n" + content_message}
+            )
+        elif not message_l[-1]["content"].startswith("<FORWARD_MSG>"):
+            message_l.append(
+                {"role": "user", "content": "<FORWARD_MSG>\n" + content_message}
+            )
+        else:
+            message_l[-1]["content"] += "\n" + content_message
+        if len(message_l[-1]["content"]) > 1500:
+            lines = message_l[-1]["content"].splitlines(keepends=True)
+            if len(lines) >= 2:
+                # 删除索引为1的第二行
+                del lines[1]
+            message_l[-1]["content"] = "".join(lines)
+        memory_data["memory"]["messages"] = message_l
 
         # 写入内存数据
         write_memory_data(event, memory_data)

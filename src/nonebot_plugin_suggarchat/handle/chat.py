@@ -100,7 +100,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             text = (
                 [
                     {
-                        "type": "input_text",
+                        "type": "text",
                         "text": f"[{role}][{Date}][{user_name}（{user_id}）]说:{content}",
                     },
                 ]
@@ -187,7 +187,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             text = (
                 [
                     {
-                        "type": "input_text",
+                        "type": "text",
                         "text": f"{Date}{await get_friend_info(event.user_id, bot=bot)}（{event.user_id}）： {content!s}",
                     },
                 ]
@@ -366,7 +366,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             ):
                 message_text = ""
                 for content_part in message["content"]:
-                    if content_part["type"] == "input_text":
+                    if content_part["type"] == "text":
                         message_text += content_part["text"]
                 message["content"] = message_text
 
@@ -382,18 +382,18 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         控制 token 数量，删除超出限制的旧消息，返回处理后的Tokens。
         """
         train = copy.deepcopy(train)
-        memory_l = [train, *copy.deepcopy(data["memory"]["messages"].copy())]
+        memory_l = [train, *copy.deepcopy(data["memory"]["messages"].copy())]  # type: list[dict]
         full_string = ""
         for st in memory_l:
-            if not st["content"]:
-                logger.error("API返回内容错误,请检查api!")
+            if not st.get("content"):
+                await send_to_admin_as_error("API返回内容错误,请检查api!(疑似被夹了)")
             elif isinstance(st["content"], str):
                 full_string += st["content"]
             else:
                 temp_string = ""
                 for s in st["content"]:
-                    if s["type"] == "input_text":
-                        temp_string += s["content"]["input_text"]
+                    if s["type"] == "text":
+                        temp_string += s["text"]
                 full_string += temp_string
         tokens = hybrid_token_count(
             full_string, config_manager.config.tokens_count_mode
@@ -432,9 +432,9 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                     st["content"]
                     if isinstance(st["content"], str)
                     else "".join(
-                        s["content"]["input_text"]
+                        s.get("text")
                         for s in st["content"]
-                        if s["type"] == "input_text"
+                        if s["type"] == "text" and s.get("text") is not None
                     )
                 )
             tokens = hybrid_token_count(
@@ -496,17 +496,8 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                 MessageSegment.reply(event.message_id) + MessageSegment.text(response)
             )
         elif response_list := split_message_into_chats(response):
-            for index, message in enumerate(response_list):
-                if index == 0:
-                    if isinstance(event, GroupMessageEvent):
-                        await matcher.send(
-                            MessageSegment.at(event.user_id)
-                            + MessageSegment.text(message)
-                        )
-                    else:
-                        await matcher.send(MessageSegment.text(message))
-                else:
-                    await matcher.send(MessageSegment.text(message))
+            for message in response_list:
+                await matcher.send(MessageSegment.text(message))
                 await asyncio.sleep(
                     random.randint(1, 3) + (len(message) // random.randint(80, 100))
                 )

@@ -88,6 +88,7 @@ class Config(BaseModel, extra="allow"):
     memory_lenth_limit: int = 50
     enable: bool = False
     fake_people: bool = False
+    global_fake_people: bool = False
     probability: float = 1e-2
     keyword: str = "at"
     nature_chat_style: bool = True
@@ -108,6 +109,13 @@ class Config(BaseModel, extra="allow"):
     say_after_self_msg_be_deleted: bool = False
     group_added_msg: str = "你好，我是Suggar，欢迎使用SuggarAI聊天机器人..."
     send_msg_after_be_invited: bool = False
+    parse_segments: bool = True
+    matcher_function: bool = True
+    session_control: bool = False
+    session_control_time: int = 60
+    session_control_history: int = 10
+    group_prompt_character: str = "default"
+    private_prompt_character: str = "default"
     after_deleted_say_what: list[str] = [
         "Suggar说错什么话了吗～下次我会注意的呢～",
         "抱歉啦，不小心说错啦～",
@@ -123,13 +131,7 @@ class Config(BaseModel, extra="allow"):
         "哎呀，我也有尴尬的时候呢~",
         "希望我能继续为你提供帮助，不要太在意我的小错误哦！",
     ]
-    parse_segments: bool = True
-    matcher_function: bool = True
-    session_control: bool = False
-    session_control_time: int = 60
-    session_control_history: int = 10
-    group_prompt_character: str = "default"
-    private_prompt_character: str = "default"
+
 
     @classmethod
     def load_from_toml(cls, path: Path) -> "Config":
