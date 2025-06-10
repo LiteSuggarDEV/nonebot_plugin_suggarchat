@@ -108,17 +108,15 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
 
         # 生成消息内容并记录到内存
         content_message = f"[{role}][{Date}][{user_name}（{user_id}）]说:{content}"
-        fwd_msg = {"role": "user", "content": "<FORWARD_MSG>\n" + content_message}
         message_l = memory_data["memory"]["messages"]  # type: list[dict[str, str]]
         if not message_l:
-            message_l.append(fwd_msg)
-        elif (
-            not isinstance(message_l[-1].get("content"), str)
-            or message_l[-1]["role"] != "user"
-        ):
-            message_l.append(fwd_msg)
+            message_l.append(
+                {"role": "user", "content": "<FORWARD_MSG>\n" + content_message}
+            )
         elif not message_l[-1]["content"].startswith("<FORWARD_MSG>"):
-            message_l.append(fwd_msg)
+            message_l.append(
+                {"role": "user", "content": "<FORWARD_MSG>\n" + content_message}
+            )
         else:
             message_l[-1]["content"] += "\n" + content_message
         if len(message_l[-1]["content"]) > 1500:
