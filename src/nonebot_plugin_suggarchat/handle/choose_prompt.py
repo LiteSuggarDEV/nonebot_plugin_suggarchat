@@ -69,14 +69,6 @@ async def choose_prompt(
             msg += f"{index + 1}). {i.name}{current_marker}\n"
         await matcher.finish(msg)
 
-    # 检查功能是否启用
-    if not config_manager.config.enable:
-        matcher.skip()
-
-    # 检查用户是否为管理员
-    if event.user_id not in config_manager.config.admins:
-        await matcher.finish("只有管理员才能设置预设。")
-
     # 解析命令参数
     arg_list = args.extract_plain_text().strip().split()
 

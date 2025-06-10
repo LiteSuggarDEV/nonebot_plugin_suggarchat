@@ -15,10 +15,6 @@ async def set_preset(
     if not config_manager.ins_config.enable:
         matcher.skip()
 
-    # 检查用户是否为管理员
-    if event.user_id not in config_manager.ins_config.admins:
-        await matcher.finish("只有管理员才能设置预设。")
-
     # 获取命令参数并去除多余空格
     arg = args.extract_plain_text().strip()
 

@@ -4,7 +4,7 @@ from nonebot.matcher import Matcher
 from nonebot.params import CommandArg
 
 from ..config import config_manager
-from ..utils import get_memory_data, is_member, write_memory_data
+from ..utils import get_memory_data, write_memory_data
 
 
 async def prompt(
@@ -12,20 +12,9 @@ async def prompt(
 ):
     """处理 prompt 命令的异步函数，根据用户输入管理 prompt 的设置和查询"""
 
-    # 检查是否启用 prompt 功能，未启用则跳过处理
-    if not config_manager.config.enable:
-        matcher.skip()
-
     # 检查是否允许自定义 prompt，不允许则结束处理
     if not config_manager.config.allow_custom_prompt:
         await matcher.finish("当前不允许自定义 prompt。")
-
-    # 检查用户是否为普通群成员且非管理员，是则结束处理
-    if (
-        await is_member(event, bot)
-        and event.user_id not in config_manager.config.admins
-    ):
-        await matcher.finish("群成员不能设置 matcher。")
 
     # 获取当前事件的记忆数据
     data = get_memory_data(event)

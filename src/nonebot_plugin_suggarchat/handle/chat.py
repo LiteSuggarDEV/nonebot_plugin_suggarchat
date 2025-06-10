@@ -520,8 +520,6 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         await send_to_admin(traceback.format_exc())
 
     # 函数进入运行点
-    if not config_manager.config.enable:
-        matcher.skip()
 
     memory_length_limit = config_manager.config.memory_lenth_limit
     Date = get_current_datetime_timestamp()

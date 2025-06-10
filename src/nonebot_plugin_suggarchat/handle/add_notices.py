@@ -6,9 +6,6 @@ from ..config import config_manager
 
 async def add_notices(event: GroupIncreaseNoticeEvent, matcher: Matcher):
     """处理群聊增加通知事件的异步函数"""
-    # 检查配置是否启用插件功能，如果未启用则跳过处理
-    if not config_manager.config.enable:
-        matcher.skip()
     # 检查配置是否需要在被邀请后发送消息，如果不需要则直接返回
     if not config_manager.config.send_msg_after_be_invited:
         return

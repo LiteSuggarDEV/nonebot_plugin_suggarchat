@@ -7,10 +7,6 @@ from ..config import config_manager
 async def menu(matcher: Matcher):
     """处理聊天菜单命令"""
 
-    # 如果插件未启用，跳过处理
-    if not config_manager.config.enable:
-        matcher.skip()
-
     # 初始化消息内容为默认菜单消息
     msg = chat_manager.menu_msg
 

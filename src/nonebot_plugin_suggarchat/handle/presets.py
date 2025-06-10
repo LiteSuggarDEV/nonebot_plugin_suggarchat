@@ -7,10 +7,6 @@ from ..config import config_manager
 async def presets(event: MessageEvent, matcher: Matcher):
     """处理查看模型预设的事件"""
 
-    # 检查功能是否启用，未启用则跳过
-    if not config_manager.config.enable:
-        matcher.skip()
-
     # 检查用户是否为管理员，非管理员则提示并结束
     if event.user_id not in config_manager.config.admins:
         await matcher.finish("只有管理员才能查看模型预设。")

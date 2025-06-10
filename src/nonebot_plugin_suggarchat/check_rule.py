@@ -1,11 +1,11 @@
 import random
 import time
 
-from nonebot.adapters import Bot
+from nonebot import logger
+from nonebot.adapters.onebot.v11 import Bot
 from nonebot.adapters.onebot.v11.event import (
     GroupMessageEvent,
     MessageEvent,
-    PrivateMessageEvent,
 )
 
 from .config import config_manager
@@ -15,6 +15,35 @@ from .utils import (
     synthesize_message,
     write_memory_data,
 )
+
+
+async def is_bot_enabled() -> bool:
+    return config_manager.config.enable
+
+
+async def is_group_admin(event: GroupMessageEvent, bot: Bot) -> bool:
+    is_admin: bool = False
+    try:
+        role: str = (
+            await bot.get_group_member_info(
+                group_id=event.group_id, user_id=event.user_id
+            )
+        )["role"]
+        if role != "owner" or event.user_id in config_manager.config.admins:
+            is_admin = True
+    except Exception:
+        logger.warning(f"获取群成员信息失败: {event.group_id} {event.user_id}")
+    return is_admin
+
+
+async def is_bot_admin(event: MessageEvent, bot: Bot) -> bool:
+    return event.user_id in config_manager.config.admins
+
+
+async def is_group_admin_if_is_in_group(event: MessageEvent, bot: Bot) -> bool:
+    if isinstance(event, GroupMessageEvent):
+        return await is_group_admin(event, bot)
+    return True
 
 
 async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
@@ -36,9 +65,6 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
 
     # 判断是否启用了伪装人模式
     if config_manager.config.fake_people:
-        # 如果是私聊消息且 @ 了机器人，直接返回 False
-        if event.is_tome() and isinstance(event, PrivateMessageEvent):
-            return False
 
         # 根据概率决定是否回复
         rand = random.random()

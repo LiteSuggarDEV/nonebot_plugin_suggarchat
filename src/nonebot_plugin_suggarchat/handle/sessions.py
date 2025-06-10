@@ -2,7 +2,7 @@ import time
 from datetime import datetime
 
 from nonebot.adapters import Bot, Message
-from nonebot.adapters.onebot.v11.event import GroupMessageEvent, MessageEvent
+from nonebot.adapters.onebot.v11.event import MessageEvent
 from nonebot.exception import NoneBotException
 from nonebot.matcher import Matcher
 from nonebot.params import CommandArg
@@ -96,18 +96,6 @@ async def sessions(
 
     # 获取当前用户的会话数据
     data = get_memory_data(event)
-
-    # 检查用户权限，普通成员无权操作历史会话
-    if isinstance(event, GroupMessageEvent) and (
-        (
-            await bot.get_group_member_info(
-                group_id=event.group_id, user_id=event.user_id
-            )
-        )["role"]
-        == "member"
-        and event.user_id not in config_manager.config.admins
-    ):
-        await matcher.finish("你没有操作历史会话的权限")
 
     # 解析用户输入的命令参数
     arg_list = args.extract_plain_text().strip().split()

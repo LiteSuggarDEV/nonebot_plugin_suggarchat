@@ -9,10 +9,6 @@ from ..config import config_manager
 
 async def recall(bot: Bot, event: GroupRecallNoticeEvent, matcher: Matcher):
     """处理消息撤回事件"""
-
-    # 检查插件功能是否启用，未启用则跳过
-    if not config_manager.config.enable:
-        matcher.skip()
     # 随机决定是否响应，降低触发频率
     if random.randint(1, 3) != 2:
         return
