@@ -29,7 +29,7 @@ async def is_group_admin(event: GroupMessageEvent, bot: Bot) -> bool:
                 group_id=event.group_id, user_id=event.user_id
             )
         )["role"]
-        if role != "owner" or event.user_id in config_manager.config.admins:
+        if role != "member" or event.user_id in config_manager.config.admins:
             is_admin = True
     except Exception:
         logger.warning(f"获取群成员信息失败: {event.group_id} {event.user_id}")
