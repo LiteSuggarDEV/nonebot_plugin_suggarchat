@@ -362,11 +362,10 @@ def convert_to_utf8(file_path) -> bool:
 async def synthesize_forward_message(forward_msg: dict) -> str:
     """合成转发消息内容为字符串"""
     result = ""
-    for segment in forward_msg["messages"]:
-        nickname = segment["sender"]["nickname"]
-        qq = segment["sender"]["user_id"]
-        time = f"[{datetime.fromtimestamp(segment['time']).strftime('%Y-%m-%d %I:%M:%S %p')}]"
-        result += f"{time}[{nickname}({qq})]说："
+    for segment in forward_msg:
+        nickname = segment["data"]["nickname"]
+        qq = segment["data"]["user_id"]
+        result += f"[{nickname}({qq})]说："
         for segments in segment["content"]:
             segments_type = segments["type"]
             if segments_type == "text":
