@@ -1,18 +1,22 @@
-from nonebot.adapters import Bot, Message
-from nonebot.adapters.onebot.v11.event import GroupMessageEvent
+from nonebot.adapters.onebot.v11 import Bot, Message, MessageEvent
 from nonebot.matcher import Matcher
 from nonebot.params import CommandArg
 
+from ..check_rule import (
+    is_group_admin_if_is_in_group,
+)
 from ..config import config_manager
 from ..utils import get_memory_data, write_memory_data
 
 
 async def prompt(
-    bot: Bot, event: GroupMessageEvent, matcher: Matcher, args: Message = CommandArg()
+    bot: Bot, event: MessageEvent, matcher: Matcher, args: Message = CommandArg()
 ):
     """处理 prompt 命令的异步函数，根据用户输入管理 prompt 的设置和查询"""
 
     # 检查是否允许自定义 prompt，不允许则结束处理
+    if not await is_group_admin_if_is_in_group(event, bot):
+        await matcher.finish("权限不足")
     if not config_manager.config.allow_custom_prompt:
         await matcher.finish("当前不允许自定义 prompt。")
 

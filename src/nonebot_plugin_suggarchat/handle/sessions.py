@@ -1,12 +1,12 @@
 import time
 from datetime import datetime
 
-from nonebot.adapters import Bot, Message
-from nonebot.adapters.onebot.v11.event import MessageEvent
+from nonebot.adapters.onebot.v11 import Bot, Message, MessageEvent
 from nonebot.exception import NoneBotException
 from nonebot.matcher import Matcher
 from nonebot.params import CommandArg
 
+from ..check_rule import is_group_admin_if_is_in_group
 from ..config import config_manager
 from ..utils import get_memory_data, write_memory_data
 
@@ -15,7 +15,8 @@ async def sessions(
     bot: Bot, event: MessageEvent, matcher: Matcher, args: Message = CommandArg()
 ):
     """会话管理命令处理入口"""
-
+    if not await is_group_admin_if_is_in_group(event, bot):
+        await matcher.finish("你没有权限执行此命令。")
     async def display_sessions(data: dict) -> None:
         """显示历史会话列表"""
         if not data.get("sessions"):

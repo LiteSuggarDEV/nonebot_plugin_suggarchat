@@ -1,13 +1,15 @@
 from nonebot import logger
-from nonebot.adapters import Bot
-from nonebot.adapters.onebot.v11.event import GroupMessageEvent, MessageEvent
+from nonebot.adapters.onebot.v11 import Bot, GroupMessageEvent, MessageEvent
 from nonebot.matcher import Matcher
 
+from ..check_rule import is_group_admin_if_is_in_group
 from ..utils import get_memory_data, write_memory_data
 
 
 async def del_memory(bot: Bot, event: MessageEvent, matcher: Matcher):
     """处理删除记忆的指令"""
+    if not await is_group_admin_if_is_in_group(event, bot):
+        return
 
     # 如果是群聊事件
     if isinstance(event, GroupMessageEvent):

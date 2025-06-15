@@ -1,15 +1,11 @@
-from nonebot.adapters.onebot.v11.event import MessageEvent
+from nonebot.adapters.onebot.v11 import Bot, MessageEvent
 from nonebot.matcher import Matcher
 
 from ..config import config_manager
 
 
-async def presets(event: MessageEvent, matcher: Matcher):
+async def presets(event: MessageEvent, matcher: Matcher, bot: Bot):
     """处理查看模型预设的事件"""
-
-    # 检查用户是否为管理员，非管理员则提示并结束
-    if event.user_id not in config_manager.config.admins:
-        await matcher.finish("只有管理员才能查看模型预设。")
 
     # 构建包含当前模型预设信息的消息
     msg = f"模型预设:\n当前：主配置文件：{config_manager.config.preset}"

@@ -4,8 +4,6 @@ from nonebot.rule import Rule
 from .check_rule import (
     is_bot_admin,
     is_bot_enabled,
-    is_group_admin,
-    is_group_admin_if_is_in_group,
     should_respond_to_message,
 )
 from .handle.add_notices import add_notices
@@ -32,9 +30,9 @@ on_message(
     block=False, priority=11, rule=Rule(should_respond_to_message, is_bot_enabled)
 ).append_handler(chat)
 
-on_command(
-    "prompt", priority=10, block=True, rule=Rule(is_group_admin, is_bot_enabled)
-).append_handler(prompt)
+on_command("prompt", priority=10, block=True, rule=is_bot_enabled).append_handler(
+    prompt
+)
 on_command(
     "presets", priority=10, block=True, rule=Rule(is_bot_admin, is_bot_enabled)
 ).append_handler(presets)
@@ -53,35 +51,33 @@ on_command(
     aliases={"fake_people", "假人开关"},
     priority=10,
     block=True,
-    rule=Rule(is_group_admin, is_bot_enabled),
+    rule=is_bot_enabled,
 ).append_handler(switch)
 on_command(
     "choose_prompt", priority=10, block=True, rule=Rule(is_bot_enabled, is_bot_admin)
 ).append_handler(choose_prompt)
 
-on_command(
-    "sessions", priority=10, block=True, rule=is_group_admin_if_is_in_group
-).append_handler(sessions)
+on_command("sessions", priority=10, block=True).append_handler(sessions)
 on_command(
     "del_memory",
     aliases={"失忆", "删除记忆", "删除历史消息", "删除回忆"},
     block=True,
     priority=10,
-    rule=Rule(is_group_admin_if_is_in_group, is_bot_enabled),
+    rule=is_bot_enabled,
 ).append_handler(del_memory)
 on_command(
     "enable",
     aliases={"启用聊天", "enable_chat"},
     block=True,
     priority=10,
-    rule=Rule(is_group_admin, is_bot_enabled),
+    rule=is_bot_enabled,
 ).append_handler(enable)
 on_command(
     "disable",
     aliases={"禁用聊天", "disable_chat"},
     block=True,
     priority=10,
-    rule=Rule(is_group_admin, is_bot_enabled),
+    rule=is_bot_enabled,
 ).append_handler(disable)
 
 on_command(
