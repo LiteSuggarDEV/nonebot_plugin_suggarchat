@@ -274,8 +274,9 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                     data["memory"]["messages"] = []
                     data["timestamp"] = time.time()
                     write_memory_data(event, data)
-                    if (time.time() - data["timestamp"]) <= (
-                        config_manager.config.session_control_time * 60 * 2
+                    if not (
+                        (int(time.time()) - data["timestamp"])
+                        > (config_manager.config.session_control_time * 60 * 2)
                     ):
                         chated = await matcher.send(
                             f'如果想和我继续用之前的上下文聊天，快回复我✨"继续"✨吧！\n（超过{config_manager.config.session_control_time}分钟没理我我就会被系统抱走存档哦！）'
