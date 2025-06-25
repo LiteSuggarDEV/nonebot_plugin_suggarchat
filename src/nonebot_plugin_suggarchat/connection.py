@@ -1,7 +1,7 @@
 import asyncio
 
 from nonebot import get_driver, logger
-from nonebot.adapters import Bot
+from nonebot.adapters.onebot.v11 import Bot
 
 from . import config
 from .config import config_manager

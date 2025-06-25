@@ -8,8 +8,8 @@ import traceback
 from datetime import datetime
 
 from nonebot import logger
-from nonebot.adapters import Bot
 from nonebot.adapters.onebot.v11 import (
+    Bot,
     MessageSegment,
 )
 from nonebot.adapters.onebot.v11.event import (

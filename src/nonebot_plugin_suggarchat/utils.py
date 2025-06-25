@@ -12,8 +12,8 @@ import nonebot
 import openai
 import pytz
 from nonebot import logger
-from nonebot.adapters import Bot
 from nonebot.adapters.onebot.v11 import (
+    Bot,
     Event,
     GroupMessageEvent,
     Message,
@@ -175,6 +175,10 @@ async def get_chat(
     logger.debug(f"协议：{preset.protocol}")
     logger.debug(f"API地址：{preset.base_url}")
     logger.debug(f"当前对话Tokens:{tokens}")
+
+    nb_bot: Bot = bot if bot else nonebot.get_bot()  # type: ignore
+    # 此处获取的Bot一定是onebot适配器的Bot.
+
     # 调用适配器获取聊天响应
     response = await func(
         preset.base_url,
@@ -183,7 +187,7 @@ async def get_chat(
         messages,
         max_tokens,
         config_manager.config,
-        bot or nonebot.get_bot(),
+        nb_bot,  # type: ignore
     )
     if chat_manager.debug:
         logger.debug(response)
@@ -359,19 +363,47 @@ def convert_to_utf8(file_path) -> bool:
     return True
 
 
-async def synthesize_forward_message(forward_msg: dict) -> str:
-    """合成转发消息内容为字符串"""
+async def synthesize_forward_message(forward_msg, bot: Bot) -> str:
+    """合成消息数组内容为字符串
+    这是一个示例的消息集合/数组：
+    [
+        {
+            "type": "node",
+            "data": {
+                "user_id": "10001000",
+                "nickname": "某人",
+                "content": "[CQ:face,id=123]哈喽～",
+            }
+        },
+        {
+            "type": "node",
+            "data": {
+                "user_id": "10001001",
+                "nickname": "某人",
+                "content": [
+                    {"type": "face", "data": {"id": "123"}},
+                    {"type": "text", "data": {"text": "哈喽～"}},
+                ]
+            }
+        }
+    ]
+    """
     result = ""
     for segment in forward_msg:
         nickname = segment["data"]["nickname"]
         qq = segment["data"]["user_id"]
         result += f"[{nickname}({qq})]说："
-        for segments in segment["content"]:
-            segments_type = segments["type"]
-            if segments_type == "text":
-                result += f"{segments['data']['text']}"
-            elif segments_type == "at":
-                result += f" [@{segments['data']['qq']}]"
+        if isinstance(segment["data"]["content"], str):
+            result += f"{segment['data']['content']}"
+        elif isinstance(segment["data"]["content"], list):
+            for segments in segment["data"]["content"]:
+                segments_type = segments["type"]
+                if segments_type == "text":
+                    result += f"{segments['data']['text']}"
+                elif segments_type == "at":
+                    result += f" [@{segments['data']['qq']}]"
+                elif segments_type == "forward":
+                    result += f"\\（合并转发:{await synthesize_forward_message(await bot.get_forward_msg(id=segments['data']['id']), bot)}）\\"
         result += "\n"
     return result
 
@@ -384,12 +416,17 @@ async def synthesize_message(message: Message, bot: Bot) -> str:
             content += segment.data["text"]
         elif segment.type == "at":
             content += f"\\（at: @{segment.data.get('name')}(QQ:{segment.data['qq']}))"
-        elif segment.type == "forward":
+        elif (
+            segment.type == "forward"
+            and config_manager.config.synthesize_forward_message
+        ):
             forward = await bot.get_forward_msg(id=segment.data["id"])
             if chat_manager.debug:
                 logger.debug(forward)
             content += (
-                " \\（合并转发\n" + await synthesize_forward_message(forward) + "）\\\n"
+                " \\（合并转发\n"
+                + await synthesize_forward_message(forward, bot)
+                + "）\\\n"
             )
     return content
 

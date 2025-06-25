@@ -89,6 +89,7 @@ class Config(BaseModel, extra="allow"):
     enable: bool = False
     fake_people: bool = False
     global_fake_people: bool = False
+    synthesize_forward_message: bool = True
     probability: float = 1e-2
     keyword: str = "at"
     nature_chat_style: bool = True

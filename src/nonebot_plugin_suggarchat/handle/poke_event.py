@@ -4,8 +4,7 @@ import sys
 import traceback
 
 from nonebot import logger
-from nonebot.adapters import Bot
-from nonebot.adapters.onebot.v11 import MessageSegment
+from nonebot.adapters.onebot.v11 import Bot, MessageSegment
 from nonebot.adapters.onebot.v11.event import PokeNotifyEvent
 from nonebot.matcher import Matcher
 
@@ -29,6 +28,8 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
         """处理群聊中的戳一戳事件"""
         Group_Data = get_memory_data(event)  # 获取群聊相关数据
         if not Group_Data["enable"]:  # 如果群聊功能未启用，直接返回
+            return
+        if not event.group_id:  # 如果群组ID不存在，直接返回
             return
 
         # 获取用户昵称

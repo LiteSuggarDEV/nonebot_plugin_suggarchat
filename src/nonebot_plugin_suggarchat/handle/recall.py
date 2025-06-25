@@ -1,6 +1,6 @@
 import random
 
-from nonebot.adapters import Bot
+from nonebot.adapters.onebot.v11 import Bot
 from nonebot.adapters.onebot.v11.event import GroupRecallNoticeEvent
 from nonebot.matcher import Matcher
 

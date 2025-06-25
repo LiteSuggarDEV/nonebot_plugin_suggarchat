@@ -3,7 +3,7 @@ import sys
 from collections.abc import Awaitable, Callable
 
 from nonebot import logger
-from nonebot.adapters import Bot
+from nonebot.adapters.onebot.v11 import Bot
 
 hook_registry: list[Callable[..., None] | Callable[..., Awaitable[None]]] = []
 
