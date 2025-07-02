@@ -26,7 +26,7 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
 
     async def handle_group_poke(event: PokeNotifyEvent, bot: Bot):
         """处理群聊中的戳一戳事件"""
-        Group_Data = get_memory_data(event)  # 获取群聊相关数据
+        Group_Data = await get_memory_data(event)  # 获取群聊相关数据
         if not Group_Data["enable"]:  # 如果群聊功能未启用，直接返回
             return
         if not event.group_id:  # 如果群组ID不存在，直接返回

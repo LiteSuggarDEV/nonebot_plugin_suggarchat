@@ -21,7 +21,7 @@ async def prompt(
         await matcher.finish("当前不允许自定义 prompt。")
 
     # 获取当前事件的记忆数据
-    data = get_memory_data(event)
+    data = await get_memory_data(event)
     arg = args.extract_plain_text().strip()
 
     # 检查输入长度是否过长，超过限制则提示用户
@@ -56,4 +56,4 @@ async def prompt(
         return
 
     # 更新记忆数据
-    write_memory_data(event, data)
+    await write_memory_data(event, data)

@@ -145,7 +145,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         await send_response(event, response)  # type: ignore
 
         # 写入记忆数据
-        write_memory_data(event, group_data)
+        await write_memory_data(event, group_data)
 
     async def handle_private_message(
         event: PrivateMessageEvent,
@@ -226,7 +226,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         await send_response(event, response)  # type: ignore
 
         # 写入记忆数据
-        write_memory_data(event, private_data)
+        await write_memory_data(event, private_data)
 
     async def manage_sessions(
         event: GroupMessageEvent | PrivateMessageEvent,
@@ -238,11 +238,6 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         - 控制会话超时和历史记录。
         - 提供“继续”功能以恢复上下文。
         """
-        if data.get("sessions") is None:
-            data["sessions"] = []
-        if data.get("timestamp") is None:
-            data["timestamp"] = time.time()
-
         if config_manager.config.session_control:
             try:
                 for session in session_clear_list:
@@ -258,7 +253,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
 
                 # 检查会话超时
                 if (time.time() - data["timestamp"]) >= (
-                    config_manager.config.session_control_time * 60
+                    float(config_manager.config.session_control_time * 60)
                 ):
                     data["sessions"].append(
                         {
@@ -273,10 +268,10 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                         data["sessions"].remove(data["sessions"][0])
                     data["memory"]["messages"] = []
                     data["timestamp"] = time.time()
-                    write_memory_data(event, data)
+                    await write_memory_data(event, data)
                     if not (
-                        (int(time.time()) - data["timestamp"])
-                        > (config_manager.config.session_control_time * 60 * 2)
+                        (time.time() - data["timestamp"])
+                        > float(config_manager.config.session_control_time * 60 * 2)
                     ):
                         chated = await matcher.send(
                             f'如果想和我继续用之前的上下文聊天，快回复我✨"继续"✨吧！\n（超过{config_manager.config.session_control_time}分钟没理我我就会被系统抱走存档哦！）'
@@ -315,7 +310,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                             ]
                             data["sessions"].pop()
                             await matcher.send("让我们继续聊天吧～")
-                            write_memory_data(event, data)
+                            await write_memory_data(event, data)
                             raise CancelException()
 
             finally:
@@ -533,12 +528,12 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
 
     try:
         if isinstance(event, GroupMessageEvent):
-            group_data = get_memory_data(event)
+            group_data = await get_memory_data(event)
             await handle_group_message(
                 event, matcher, bot, group_data, memory_length_limit, Date
             )  # type: ignore
         elif isinstance(event, PrivateMessageEvent):
-            private_data = get_memory_data(event)
+            private_data = await get_memory_data(event)
             await handle_private_message(
                 event, matcher, bot, private_data, memory_length_limit, Date
             )

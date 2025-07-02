@@ -10,27 +10,16 @@ async def del_memory(bot: Bot, event: MessageEvent, matcher: Matcher):
     """处理删除记忆的指令"""
     if not await is_group_admin_if_is_in_group(event, bot):
         return
-
-    # 如果是群聊事件
+    data = await get_memory_data(event)
     if isinstance(event, GroupMessageEvent):
-
-        # 获取群聊记忆数据
-        GData = get_memory_data(event)
-
         # 清除群聊上下文
-        if GData["id"] == event.group_id:
-            GData["memory"]["messages"] = []
-            await matcher.send("群聊上下文已清除")
-            write_memory_data(event, GData)
-            logger.info(f"{event.group_id} 的记忆已清除")
+        if id := event.group_id == data["id"]:
+            data["memory"]["messages"] = []
 
     else:
-        # 获取私聊记忆数据
-        FData = get_memory_data(event)
-
         # 清除私聊上下文
-        if FData["id"] == event.user_id:
-            FData["memory"]["messages"] = []
-            await matcher.send("私聊上下文已清除")
-            logger.info(f"{event.user_id} 的记忆已清除")
-            write_memory_data(event, FData)
+        if id := event.user_id == data["id"]:
+            data["memory"]["messages"] = []
+    await matcher.send("上下文已清除")
+    await write_memory_data(event, data)
+    logger.info(f"{event.get_event_name()}:{id} 的记忆已清除")

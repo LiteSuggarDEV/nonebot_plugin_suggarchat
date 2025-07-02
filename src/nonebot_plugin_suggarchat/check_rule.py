@@ -71,13 +71,13 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
         rate = config_manager.config.probability
 
         # 获取内存数据
-        memory_data: dict = get_memory_data(event)
+        memory_data: dict = await get_memory_data(event)
         if rand <= rate and (
             config_manager.config.global_fake_people
             or memory_data.get("fake_people", False)
         ):
             memory_data["timestamp"] = time.time()
-            write_memory_data(event, memory_data)
+            await write_memory_data(event, memory_data)
             return True
         # 合成消息内容
         content = await synthesize_message(message, bot)
@@ -130,7 +130,7 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
         memory_data["memory"]["messages"] = message_l
 
         # 写入内存数据
-        write_memory_data(event, memory_data)
+        await write_memory_data(event, memory_data)
 
     # 默认返回 False
     return False
