@@ -471,10 +471,8 @@ async def get_memory_data(event: Event) -> dict[str, Any]:
     private_memory = config_manager.private_memory
     group_memory = config_manager.group_memory
     async with write_read_lock:
-        if not Path(private_memory).exists() or not Path(private_memory).is_dir():
-            Path.mkdir(private_memory)
-        if not Path(group_memory).exists() or not Path(group_memory).is_dir():
-            Path.mkdir(group_memory)
+        Path.mkdir(private_memory, exist_ok=True)
+        Path.mkdir(group_memory, exist_ok=True)
 
         if (
             not isinstance(event, PrivateMessageEvent)
