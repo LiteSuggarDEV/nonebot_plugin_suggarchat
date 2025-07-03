@@ -85,6 +85,9 @@ class EventType:
         """
         return [self.__CHAT, self.__None, self.__POKE]
 
+    def validate(self, name: str) -> bool:
+        return name in self.get_event_types()
+
 
 class BasicEvent:
     """
@@ -128,32 +131,8 @@ class SuggarEvent(BasicEvent):
         # 初始化要发送的消息内容
         self._send_message: list = send_message
 
-    def __int__(self):
-        """
-        防止将对象转换为整数。
-
-        异常:
-            TypeError: 表示 SUGGAREVENT 不是一个数字，不应转换为整数。
-        """
-        raise TypeError("SUGGAREVENT is not a number")
-
     def __bool__(self):
-        """
-        防止将对象转换为布尔值。
-
-        异常:
-            TypeError: 表示 SUGGAREVENT 不是一个布尔值。
-        """
-        raise TypeError("SUGGAREVENT is not a bool")
-
-    def __float__(self):
-        """
-        防止将对象转换为浮点数。
-
-        异常:
-            TypeError: 表示 SUGGAREVENT 不是一个浮点数。
-        """
-        raise TypeError("SUGGAREVENT is not a float")
+        return True
 
     def __str__(self):
         """

@@ -8,3 +8,7 @@ class CancelException(Exception):
 
 class PassException(Exception):
     pass
+
+
+class TypeWarning(Exception):
+    pass

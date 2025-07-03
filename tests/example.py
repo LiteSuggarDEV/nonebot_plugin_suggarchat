@@ -16,25 +16,25 @@ from nonebot_plugin_suggarchat.on_event import (
 )
 
 
-@on_poke().handle(priority_value=10)
+@on_poke(priority=10).handle()
 async def _(event: PokeEvent):
     logger.info("戳了！")
     logger.info(event)
 
 
-@on_before_poke().handle(priority_value=10)
+@on_before_poke(priority=10).handle()
 async def _(event: BeforePokeEvent):
     logger.info("现在在获取模型的回复之前！")
     logger.info(event)
 
 
-@on_before_chat().handle(priority_value=10)
+@on_before_chat(priority=10).handle()
 async def _(event: BeforeChatEvent):
     logger.info("现在在获取模型的回复之前！")
     logger.info(event)
 
 
-@on_chat().handle(priority_value=10)
+@on_chat(priority=10).handle()
 async def _(event: ChatEvent):
     logger.info("收到聊天事件!")
     logger.info(event)

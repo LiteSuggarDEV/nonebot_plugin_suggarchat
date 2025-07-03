@@ -14,13 +14,11 @@ async def disable(bot: Bot, event: GroupMessageEvent, matcher: Matcher):
     logger.debug(f"{event.group_id} disabled")
 
     # 获取并更新群聊状态数据
-    data = get_memory_data(event)
+    data = await get_memory_data(event)
     if data["id"] == event.group_id:
-        if not data["enable"]:
-            await matcher.send("聊天功能已禁用")
-        else:
+        if data["enable"]:
             data["enable"] = False
-            await matcher.send("聊天功能已成功禁用")
+        await matcher.send("聊天功能已禁用")
 
     # 保存更新后的群聊状态数据
-    write_memory_data(event, data)
+    await write_memory_data(event, data)

@@ -1,11 +1,14 @@
+import asyncio
 import json
 import re
 import sys
+import time
 from collections.abc import Callable, Coroutine
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import aiofiles
 import chardet
 import jieba
 import nonebot
@@ -22,9 +25,34 @@ from nonebot.adapters.onebot.v11 import (
 )
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
+from pydantic import BaseModel, Field
 
 from .chatmanager import chat_manager
 from .config import Config, config_manager
+
+write_read_lock: asyncio.Lock = asyncio.Lock()
+
+
+class MemoryModel(BaseModel, extra="allow"):
+    id: int = Field(..., description="ID")
+    enable: bool = Field(default=True, description="是否启用")
+    memory: dict[str, Any] = Field(default={"messages": []}, description="记忆")
+    full: bool = Field(default=False, description="是否启用Fullmode")
+    sessions: list[dict[str, Any]] = Field(default=[], description="会话")
+    timestamp: float = Field(default=time.time(), description="时间戳")
+    fake_people: bool = Field(default=False, description="是否启用假人")
+
+    def __str__(self) -> str:
+        return json.dumps(self.model_dump(), ensure_ascii=True)
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+    def __getitem__(self, key: str) -> Any:
+        return self.model_dump()[key]
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self.__setattr__(key, value)
 
 
 class Tokenizer:
@@ -156,7 +184,7 @@ async def get_chat(
     max_tokens = config_manager.config.max_tokens
     func = openai_get_chat
     # 根据预设选择API密钥和基础URL
-    preset = config_manager.get_preset(
+    preset = await config_manager.get_preset(
         config_manager.config.preset, fix=True, cache=False
     )
     is_thought_chain_model = preset.thought_chain_model
@@ -208,12 +236,11 @@ async def openai_get_chat(
     client = openai.AsyncOpenAI(
         base_url=base_url, api_key=key, timeout=config.llm_timeout
     )
+    completion: ChatCompletion | openai.AsyncStream[ChatCompletionChunk] | None = None
     # 尝试获取聊天响应，最多重试3次
     for index, i in enumerate(range(3)):
         try:
-            completion: (
-                ChatCompletion | openai.AsyncStream[ChatCompletionChunk]
-            ) = await client.chat.completions.create(
+            completion = await client.chat.completions.create(
                 model=model,
                 messages=messages,
                 max_tokens=max_tokens,
@@ -431,118 +458,101 @@ async def synthesize_message(message: Message, bot: Bot) -> str:
     return content
 
 
-def get_memory_data(event: Event) -> dict[str, Any]:
+async def write_memory_data_by_model(event: Event, data: MemoryModel):
+    return await write_memory_data(event, data.model_dump())
+
+
+async def get_memory_data(event: Event) -> dict[str, Any]:
     """获取事件对应的记忆数据，如果不存在则创建初始数据"""
     if chat_manager.debug:
         logger.debug(f"获取{event.get_type()} {event.get_session_id()} 的记忆数据")
     private_memory = config_manager.private_memory
     group_memory = config_manager.group_memory
+    conf_path: None | Path = None
+    async with write_read_lock:
+        Path.mkdir(private_memory, exist_ok=True)
+        Path.mkdir(group_memory, exist_ok=True)
 
-    if not Path(private_memory).exists() or not Path(private_memory).is_dir():
-        Path.mkdir(private_memory)
-    if not Path(group_memory).exists() or not Path(group_memory).is_dir():
-        Path.mkdir(group_memory)
-
-    if (
-        not isinstance(event, PrivateMessageEvent)
-        and not isinstance(event, GroupMessageEvent)
-        and isinstance(event, PokeNotifyEvent)
-        and event.group_id
-    ) or (
-        not isinstance(event, PrivateMessageEvent)
-        and isinstance(event, GroupMessageEvent)
-    ):
-        group_id = event.group_id
-        conf_path = Path(group_memory / f"{group_id}.json")
-        if not conf_path.exists():
-            with open(str(conf_path), "w", encoding="utf-8") as f:
-                json.dump(
-                    {
-                        "id": group_id,
-                        "enable": True,
-                        "memory": {"messages": []},
-                        "full": False,
-                    },
-                    f,
-                    ensure_ascii=True,
-                    indent=0,
-                )
-    elif (
-        not isinstance(event, PrivateMessageEvent)
-        and isinstance(event, PokeNotifyEvent)
-    ) or isinstance(event, PrivateMessageEvent):
-        user_id = event.user_id
-        conf_path = Path(private_memory / f"{user_id}.json")
-        if not conf_path.exists():
-            with open(str(conf_path), "w", encoding="utf-8") as f:
-                json.dump(
-                    {
-                        "id": user_id,
-                        "enable": True,
-                        "memory": {"messages": []},
-                        "full": False,
-                    },
-                    f,
-                    ensure_ascii=True,
-                    indent=0,
-                )
-    convert_to_utf8(conf_path)
-    with open(str(conf_path), encoding="utf-8") as f:
-        conf = json.load(f)
-        if chat_manager.debug:
-            logger.debug(f"读取到记忆数据{conf}")
-        return conf
+        if (
+            not isinstance(event, PrivateMessageEvent)
+            and not isinstance(event, GroupMessageEvent)
+            and isinstance(event, PokeNotifyEvent)
+            and event.group_id
+        ) or (
+            not isinstance(event, PrivateMessageEvent)
+            and isinstance(event, GroupMessageEvent)
+            and event.group_id
+        ):
+            group_id: int = event.group_id
+            conf_path = Path(group_memory / f"{group_id}.json")
+            if not conf_path.exists():
+                async with aiofiles.open(str(conf_path), "w", encoding="utf-8") as f:
+                    await f.write(str(MemoryModel(id=group_id)))
+        elif (
+            not isinstance(event, PrivateMessageEvent)
+            and isinstance(event, PokeNotifyEvent)
+        ) or isinstance(event, PrivateMessageEvent):
+            user_id = event.user_id
+            conf_path = Path(private_memory / f"{user_id}.json")
+            if not conf_path.exists():
+                async with aiofiles.open(str(conf_path), "w", encoding="utf-8") as f:
+                    await f.write(str(MemoryModel(id=user_id)))
+        assert conf_path is not None, "conf_path is None"
+        convert_to_utf8(conf_path)
+        async with aiofiles.open(str(conf_path), encoding="utf-8") as f:
+            conf = dict(MemoryModel(**json.loads(await f.read())))
+            if chat_manager.debug:
+                logger.debug(f"读取到记忆数据{conf}")
+            return conf
 
 
-def write_memory_data(event: Event, data: dict) -> None:
+async def write_memory_data(event: Event, data: dict) -> None:
     """将记忆数据写入对应的文件"""
     if chat_manager.debug:
         logger.debug(f"写入记忆数据{data}")
         logger.debug(f"事件：{type(event)}")
     group_memory = config_manager.group_memory
     private_memory = config_manager.private_memory
-
-    if isinstance(event, GroupMessageEvent):
-        group_id = event.group_id
-        conf_path = Path(group_memory / f"{group_id}.json")
-    elif isinstance(event, PrivateMessageEvent):
-        user_id = event.user_id
-        conf_path = Path(private_memory / f"{user_id}.json")
-    elif isinstance(event, PokeNotifyEvent):
-        if event.group_id:
+    conf_path = None
+    async with write_read_lock:
+        if isinstance(event, GroupMessageEvent):
             group_id = event.group_id
             conf_path = Path(group_memory / f"{group_id}.json")
-            if not conf_path.exists():
-                with open(str(conf_path), "w", encoding="utf-8") as f:
-                    json.dump(
-                        {
-                            "id": group_id,
-                            "enable": True,
-                            "memory": {"messages": []},
-                            "full": False,
-                        },
-                        f,
-                        ensure_ascii=True,
-                        indent=0,
-                    )
-        else:
+        elif isinstance(event, PrivateMessageEvent):
             user_id = event.user_id
             conf_path = Path(private_memory / f"{user_id}.json")
-            if not conf_path.exists():
-                with open(str(conf_path), "w", encoding="utf-8") as f:
-                    json.dump(
-                        {
-                            "id": user_id,
-                            "enable": True,
-                            "memory": {"messages": []},
-                            "full": False,
-                        },
-                        f,
-                        ensure_ascii=True,
-                        indent=0,
-                    )
-    with open(str(conf_path), "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=True)
+        elif isinstance(event, PokeNotifyEvent):
+            if event.group_id:
+                group_id = event.group_id
+                conf_path = Path(group_memory / f"{group_id}.json")
+                if not conf_path.exists():
+                    async with aiofiles.open(
+                        str(conf_path), "w", encoding="utf-8"
+                    ) as f:
+                        await f.write(
+                            str(
+                                MemoryModel(
+                                    id=group_id,
+                                )
+                            )
+                        )
+            else:
+                user_id = event.user_id
+                conf_path = Path(private_memory / f"{user_id}.json")
+                if not conf_path.exists():
+                    async with aiofiles.open(
+                        str(conf_path), "w", encoding="utf-8"
+                    ) as f:
+                        await f.write(
+                            str(
+                                MemoryModel(
+                                    id=user_id,
+                                )
+                            )
+                        )
+        assert conf_path is not None
+        async with aiofiles.open(str(conf_path), "w", encoding="utf-8") as f:
+            await f.write(str(MemoryModel(**data)))
 
 
 def split_list(lst: list, threshold: int) -> list[Any]:

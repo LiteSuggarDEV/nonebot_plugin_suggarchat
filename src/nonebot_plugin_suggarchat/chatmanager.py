@@ -21,7 +21,9 @@ class ChatManager:
     menu_msg += "clear：清空所有会话\n"
     menu_msg += "Preset帮助：\n"
     menu_msg += "/presets 列出所有读取到的模型预设\n"
-    menu_msg += "/set_preset 或 /设置预设 或 /设置模型预设  <预设名> 设置当前使用的预设\n"
+    menu_msg += (
+        "/set_preset 或 /设置预设 或 /设置模型预设  <预设名> 设置当前使用的预设\n"
+    )
     menu_msg += "/prompts 展示当前的prompt预设\n"
     menu_msg += (
         "/choose_prompt <group/private> <预设名称> 设置群聊/私聊的全局提示词预设\n"

@@ -17,6 +17,7 @@ async def sessions(
     """会话管理命令处理入口"""
     if not await is_group_admin_if_is_in_group(event, bot):
         await matcher.finish("你没有权限执行此命令。")
+
     async def display_sessions(data: dict) -> None:
         """显示历史会话列表"""
         if not data.get("sessions"):
@@ -34,7 +35,7 @@ async def sessions(
                     "messages"
                 ]
                 data["timestamp"] = time.time()
-                write_memory_data(event, data)
+                await write_memory_data(event, data)
                 await matcher.send("完成记忆覆盖。")
             else:
                 await matcher.finish("请输入正确编号")
@@ -50,7 +51,7 @@ async def sessions(
         try:
             if len(arg_list) >= 2:
                 data["sessions"].remove(data["sessions"][int(arg_list[1])])
-                write_memory_data(event, data)
+                await write_memory_data(event, data)
             else:
                 await matcher.finish("请输入正确编号")
         except NoneBotException as e:
@@ -70,7 +71,7 @@ async def sessions(
                 )
                 data["memory"]["messages"] = []
                 data["timestamp"] = time.time()
-                write_memory_data(event, data)
+                await write_memory_data(event, data)
                 await matcher.finish("当前会话已归档。")
             else:
                 await matcher.finish("当前对话为空！")
@@ -84,7 +85,7 @@ async def sessions(
         try:
             data["sessions"] = []
             data["timestamp"] = time.time()
-            write_memory_data(event, data)
+            await write_memory_data(event, data)
             await matcher.finish("会话已清空。")
         except NoneBotException as e:
             raise e
@@ -96,7 +97,7 @@ async def sessions(
         matcher.skip()
 
     # 获取当前用户的会话数据
-    data = get_memory_data(event)
+    data = await get_memory_data(event)
 
     # 解析用户输入的命令参数
     arg_list = args.extract_plain_text().strip().split()

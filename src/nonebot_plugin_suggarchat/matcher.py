@@ -1,78 +1,98 @@
 import inspect
 import sys
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from copy import deepcopy
+from types import FrameType
+from typing import Any, ClassVar
 
 from nonebot import logger
-from nonebot.exception import FinishedException, ProcessException, StopPropagation
+from nonebot.exception import (
+    FinishedException,
+    NoneBotException,
+    ProcessException,
+    StopPropagation,
+)
+from pydantic import BaseModel, Field
+from typing_extensions import Self
 
 from .event import SuggarEvent
 from .exception import BlockException, CancelException, PassException
 
 """
 suggar matcher
-用于触发Suggar扩展事件循环
 """
 
 
-@dataclass
+class FunctionData(BaseModel):
+    function: Callable[..., Awaitable[Any]] = Field(...)
+    signature: inspect.Signature = Field(...)
+    frame: FrameType = Field(...)
+    priority: int = Field(...)
+    block: bool = Field(...)
+    matcher: Any = Field(...)
+
+
 class EventRegistry:
-    event_handlers: dict = field(default_factory=dict)
-    handler_infos: dict = field(default_factory=dict)
-    priority: dict = field(default_factory=dict)
+    _instance = None
+    __event_handlers: ClassVar[dict[str, list[FunctionData]]]
+
+    def __new__(cls) -> Self:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls.__event_handlers = {}
+        return cls._instance
+
+    def register_handler(self, event_type: str, data: FunctionData):
+        self.__event_handlers.setdefault(event_type, []).append(data)
+
+    def get_handlers(self, event_type: str) -> list[FunctionData]:
+        self.__event_handlers.setdefault(event_type, [])
+        self.__event_handlers[event_type].sort(key=lambda x: x.priority, reverse=False)
+        return self.__event_handlers[event_type]
+
+    def _all(self) -> dict[str, list[FunctionData]]:
+        return self.__event_handlers
 
 
 event_registry = EventRegistry()
 
 
-class SuggarMatcher:
-    def __init__(self, event_type: str = ""):
-        # 存储事件处理函数的字典
-        self.event_handlers = event_registry.event_handlers
-        self.handler_infos = event_registry.handler_infos
+class Matcher:
+    def __init__(self, event_type: str, priority: int = 10, block: bool = True):
+        """构造函数，初始化Matcher对象。
+        Args:
+            event_type (str): 事件类型
+            priority (int, optional): 优先级。 Defaults to 10.
+            block (bool, optional): 是否阻止后续事件。 Defaults to True.
+        """
         self.event_type = event_type
-        self.event: SuggarEvent
-        self.processing_message: list
-        self.priority = event_registry.priority
+        self.priority = priority
+        self.block = block
 
-    def handle(self, event_type=None, priority_value: int = 10, block=False):
+    def handle(self):
         """
         事件处理函数注册函数
-        参数：
-          - event_type: 事件类型，默认为None，因为在on_event可能已经传入
-          - priority_value: 事件优先级，默认为10
-          - block: 是否阻塞事件，默认为False
         """
-        if priority_value <= 0:
+        if self.priority <= 0:
             raise ValueError("事件优先级不能为0或负！")
-        if event_type is None and self.event_type != "":
-            event_type = self.event_type
-            if self.event_type == "" or self.event_type is None:
-                raise ValueError("事件类型不能为空！")
 
-        def decorator(func: Callable[[SuggarEvent | None], Awaitable[None]]):
-            self.handler_infos = event_registry.handler_infos
-            self.priority = event_registry.priority
-            self.event_handlers = event_registry.event_handlers
-            if event_type not in self.event_handlers:
-                self.event_handlers[event_type] = []
-                self.handler_infos[event_type] = {}
-                self.priority[event_type] = []
-            self.event_handlers[event_type].append(func)
-            if priority_value not in self.priority[event_type]:
-                self.priority[event_type].append(priority_value)
-            self.priority[event_type] = sorted(self.priority[event_type])
+        def wrapper(
+            func: Callable[..., Awaitable[Any]],
+        ):
             frame = inspect.currentframe()
-            self.handler_infos[event_type][id(func)] = {
-                "func": func,
-                "signature": inspect.signature(func),
-                "frame": frame,
-                "priority": priority_value,
-                "block": block,
-            }
+            assert frame is not None, "Frame is None!!!"
+            func_data = FunctionData(
+                function=func,
+                signature=inspect.signature(func),
+                frame=frame,
+                priority=self.priority,
+                block=self.block,
+                matcher=self,
+            )
+            event_registry.register_handler(self.event_type, func_data)
             return func
 
-        return decorator
+        return wrapper
 
     def stop_process(self):
         """
@@ -82,7 +102,7 @@ class SuggarMatcher:
 
     def cancel(self):
         """
-        停止Nonebot层的处理器
+        终止Nonebot层的处理器
         """
         raise FinishedException()
 
@@ -104,106 +124,126 @@ class SuggarMatcher:
         """
         raise PassException()
 
-    async def trigger_event(self, event: SuggarEvent, *args, **kwargs):
+
+class MatcherManager:
+    _instance = None
+
+    def __new__(cls) -> Self:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    async def trigger_event(self, *args, **kwargs):
         """
         触发特定类型的事件，并调用该类型的所有注册事件处理程序。
 
         参数:
         - event: SuggarEvent 对象，包含事件相关数据。
-        - **kwargs: 关键字参数，可能包含事件相关数据。
-        - *args: 可变参数，可能包含事件相关数据。
+        - **kwargs: 关键字参数，传递给依赖注入系统的参数。
+        - *args: 可变参数，传递给依赖注入系统的参数。
         """
-        event_type = self.event_type  # 获取事件类型
-        self.event = event
-        self.processing_message = event.message
-        logger.info(f"开始为这个类型 {event_type} 的事件运行处理。")
+        event: SuggarEvent | None = None
+        for i in args:
+            if isinstance(i, SuggarEvent):
+                event = i
+                break
+        if not event:
+            logger.error("Expecting event,but got nothing.")
+            return
+        event_type = event.get_event_type()  # 获取事件类型
+        priority_tmp = 0
+        logger.info(f"Running matcher for event: {event_type}")
         # 检查是否有处理该事件类型的处理程序
-        if event_type in self.event_handlers:
-            for priority in sorted(self.priority[event_type]):
+        if matcher_list := event_registry.get_handlers(event_type):
+            for matcher in matcher_list:
+                if matcher.priority != priority_tmp:
+                    priority_tmp = matcher.priority
+                    logger.info(f"Running matchers on priority {priority_tmp} ......")
+
+                signature = matcher.signature
+                frame = matcher.frame
+                line_number = frame.f_lineno
+                file_name = frame.f_code.co_filename
+                handler = matcher.function
+                session_args = [matcher.matcher, *deepcopy(args)]
+                session_kwargs = {**deepcopy(kwargs)}
+
+                args_types = {k: v.annotation for k, v in signature.parameters.items()}
+                filtered_args_types = {
+                    k: v for k, v in args_types.items() if v is not inspect._empty
+                }
+                if args_types != filtered_args_types:
+                    failed_args = list(args_types.keys() - filtered_args_types.keys())
+                    logger.warning(
+                        f"Matcher {matcher.function.__name__} (File: {file_name}: Line {frame.f_lineno!s}) has some parameters with no type annotation"
+                        + f"(Args:{''.join(i + ',' for i in failed_args)}).Skipping......"
+                    )
+                    continue
+                new_args = []
+                used_indices = set()
+                for param_type in filtered_args_types.values():
+                    for i, arg in enumerate(session_args):
+                        if i in used_indices:
+                            continue
+                        if isinstance(arg, param_type):
+                            new_args.append(arg)
+                            used_indices.add(i)
+                            break
+                new_args_tuple = tuple(new_args)
+
+                # 获取关键词参数类型注解
+                kwparams = signature.parameters
+                f_kwargs = {
+                    param_name: session_kwargs[param.annotation]
+                    for param_name, param in kwparams.items()
+                    if param.annotation in session_kwargs
+                }
+                if (len(list(f_kwargs)) != len(list(kwparams))) or (
+                    len(new_args_tuple) != len(list(filtered_args_types))
+                ):
+                    continue  # 处理依赖
+
+                # 调用处理程序
+
                 try:
-                    logger.info(f"开始处理优先级为 {priority} 的 {event_type} 事件。")
-                    # 遍历该事件类型的所有处理程序
-                    for handler in self.event_handlers[event_type]:
-                        info = self.handler_infos[event_type][id(handler)]
-                        if info["priority"] != priority:
-                            continue
-                        # 获取处理程序的签名
-                        sig = inspect.signature(handler)
-                        line_number = info["frame"].f_lineno
-                        file_name = info["frame"].f_code.co_filename
+                    logger.info(f"Start running matcher '{handler.__name__}'")
 
-                        param_types = {
-                            k: v.annotation for k, v in sig.parameters.items()
-                        }
-                        filtered_param_types = {
-                            k: v
-                            for k, v in param_types.items()
-                            if v is not inspect._empty
-                        }
-                        # 创建一个新的参数列表
-                        new_args = []
-                        used_indices = set()
-                        for param_type in filtered_param_types.values():
-                            for i, arg in enumerate(args):
-                                if i in used_indices:
-                                    continue
-                                if isinstance(arg, param_type):
-                                    new_args.append(arg)
-                                    used_indices.add(i)
-                                    break
-                        new_args_tuple = tuple(new_args)
+                    await handler(*new_args_tuple, **f_kwargs)
 
-                        # 获取关键词参数类型注解
-                        params = sig.parameters
-                        f_kwargs = {
-                            param_name: kwargs[param.annotation]
-                            for param_name, param in params.items()
-                            if param.annotation in kwargs
-                        }
-                        # 调用处理程序
-                        try:
-                            logger.info(
-                                f"开始运行处理器： '{handler.__name__}'(~{file_name}:{line_number})"
-                            )
-
-                            await handler(event, *new_args_tuple, **f_kwargs)
-
-                        except ProcessException as e:
-                            logger.info("处理已停止。")
-                            raise e
-                        except PassException:
-                            logger.info(
-                                f"处理器 '{handler.__name__}'(~{file_name}:{line_number}) 已取消运行"
-                            )
-                            continue
-                        except CancelException:
-                            logger.info("事件处理已取消。")
-                            return
-                        except BlockException as e:
-                            raise e
-                        except Exception:
-                            logger.error(
-                                f"在运行处理器 '{handler.__name__}'(~{file_name}:{line_number}) 时遇到了问题"
-                            )
-                            exc_type, exc_value, exc_traceback = sys.exc_info()
-                            logger.error(
-                                f"Exception type: {exc_type.__name__}"
-                                if exc_type
-                                else "Exception type: None"
-                            )
-                            logger.error(f"Exception message: {exc_value!s}")
-                            import traceback
-
-                            back = "".join(traceback.format_tb(exc_traceback))
-                            logger.error(back)
-                            continue
-                        finally:
-                            logger.info(
-                                f"'{handler.__name__}'(~{file_name}:{line_number}任务已结束。"
-                            )
-                            if info["block"]:
-                                raise BlockException()
+                except ProcessException as e:
+                    logger.info("Stopped nonebot process.")
+                    raise e
+                except PassException:
+                    logger.info(
+                        f"Matcher '{handler.__name__}'(~{file_name}:{line_number}) passed"
+                    )
+                    continue
+                except CancelException:
+                    logger.info("Canceled SuggarMatcher process.")
+                    return
                 except BlockException:
                     break
+                except NoneBotException:
+                    raise
+                except Exception:
+                    logger.error(
+                        f"Something wrong has happend while running matcher at '{handler.__name__}'({file_name}:{line_number}) "
+                    )
+                    exc_type, exc_value, exc_traceback = sys.exc_info()
+                    logger.error(
+                        f"Exception type: {exc_type.__name__}"
+                        if exc_type
+                        else "Exception type: None"
+                    )
+                    logger.error(f"Exception message: {exc_value!s}")
+                    import traceback
+
+                    back = "".join(traceback.format_tb(exc_traceback))
+                    logger.error(back)
+                    continue
+                finally:
+                    logger.info(f"Handler {handler.__name__} task has done.")
+                    if matcher.block:
+                        break
         else:
-            logger.info(f"没有为这个事件: {event_type} 注册的处理器，跳过处理。")
+            logger.info(f"No matcher for event {event_type} was matched,skipping......")

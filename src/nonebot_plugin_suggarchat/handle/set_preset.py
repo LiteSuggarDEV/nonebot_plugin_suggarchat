@@ -21,11 +21,11 @@ async def set_preset(
     # 如果参数不为空
     if arg != "":
         # 遍历所有模型
-        for model in config_manager.get_models():
+        for model in await config_manager.get_models():
             if model.name == arg:
                 # 设置预设并保存
                 config_manager.ins_config.preset = model.name
-                config_manager.save_config()
+                await config_manager.save_config()
                 # 回复设置成功
                 await matcher.finish(f"已设置预设为：{model.name}，模型：{model.model}")
         # 未找到匹配的预设
@@ -33,8 +33,8 @@ async def set_preset(
     else:
         # 参数为空时重置为默认预设
         config_manager.ins_config.preset = "default"
-        config_manager.save_config()
+        await config_manager.save_config()
         # 回复重置成功
         await matcher.finish(
-            f"已重置预设为：默认预设，模型：{config_manager.get_preset(config_manager.ins_config.preset).model}。"
+            f"已重置预设为：默认预设，模型：{(await config_manager.get_preset(config_manager.ins_config.preset)).model}。"
         )

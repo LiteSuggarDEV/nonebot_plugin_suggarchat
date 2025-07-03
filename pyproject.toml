@@ -1,6 +1,6 @@
 [project]
 name = "nonebot_plugin_suggarchat"
-version = "2.4.6.post1"
+version = "3.0.0.dev1"
 description = "Plugin SuggarChat framework compatible with Nonebot2."
 authors = [{ name = "JohnRichard4096", email = "windowserror@163.com" }]
 dependencies = [
@@ -17,15 +17,13 @@ dependencies = [
     "tomli-w>=1.0.0",
     "stubs>=1.0.0",
     "dotenv>=0.9.9",
+    "aiofiles>=24.1.0",
+    "importlib>=1.0.4",
 ]
-requires-python = ">=3.9, <4.0"
+requires-python = ">=3.10, <4.0"
 readme = "README.md"
 license = { text = "GPL-3.0-or-later" }
 keywords = ['chat", "suggar", "nonebot']
-[build-system]
-requires = ['pdm-backend']
-build-backend = "pdm.backend"
-
 
 [tool.pdm]
 distribution = true
@@ -38,7 +36,7 @@ distribution = true
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = [
@@ -66,4 +64,4 @@ ignore = [
 ]
 
 [tool.pyright]
-typeCheckingMode = "basic"
+typeCheckingMode ="standard"

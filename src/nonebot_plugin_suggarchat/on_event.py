@@ -1,18 +1,22 @@
 from .event import EventType
-from .matcher import SuggarMatcher
+from .matcher import Matcher
 
 
-def on_chat():
-    return SuggarMatcher(event_type=EventType().chat())
+def on_chat(priority: int = 10, block: bool = True):
+    return Matcher(EventType().chat(), priority, block)
 
 
-def on_poke():
-    return SuggarMatcher(event_type=EventType().poke())
+def on_poke(priority: int = 10, block: bool = True):
+    return Matcher(EventType().poke(), priority, block)
 
 
-def on_before_chat():
-    return SuggarMatcher(event_type=EventType().before_chat())
+def on_before_chat(priority: int = 10, block: bool = True):
+    return Matcher(EventType().before_chat(), priority, block)
 
 
-def on_before_poke():
-    return SuggarMatcher(event_type=EventType().before_poke())
+def on_before_poke(priority: int = 10, block: bool = True):
+    return Matcher(EventType().before_poke(), priority, block)
+
+
+def on_event(event_type: str, priority: int = 10, block: bool = True):
+    return Matcher(event_type, priority, block)

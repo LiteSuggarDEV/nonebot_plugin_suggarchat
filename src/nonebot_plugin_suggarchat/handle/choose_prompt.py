@@ -24,29 +24,31 @@ async def choose_prompt(
     async def handle_group_prompt(arg_list: list[str]) -> None:
         """处理群组提示词设置"""
         if len(arg_list) >= 2:
-            for i in config_manager.get_prompts().group:
+            for i in (await config_manager.get_prompts()).group:
                 if i.name == arg_list[1]:
                     config_manager.ins_config.group_prompt_character = i.name
-                    config_manager.load_prompt()
-                    config_manager.save_config()
+                    await config_manager.load_prompt()
+                    await config_manager.save_config()
                     await matcher.finish(f"已设置群组提示词为：{i.name}")
             await matcher.finish("未找到预设，请输入/choose_prompt group查看预设列表")
         else:
-            await list_available_prompts(config_manager.get_prompts().group, "group")
+            await list_available_prompts(
+                (await config_manager.get_prompts()).group, "group"
+            )
 
     async def handle_private_prompt(arg_list: list[str]) -> None:
         """处理私聊提示词设置"""
         if len(arg_list) >= 2:
-            for i in config_manager.get_prompts().private:
+            for i in (await config_manager.get_prompts()).private:
                 if i.name == arg_list[1]:
                     config_manager.ins_config.private_prompt_character = i.name
-                    config_manager.load_prompt()
-                    config_manager.save_config()
+                    await config_manager.load_prompt()
+                    await config_manager.save_config()
                     await matcher.finish(f"已设置私聊提示词为：{i.name}")
             await matcher.finish("未找到预设，请输入/choose_prompt private查看预设列表")
         else:
             await list_available_prompts(
-                config_manager.get_prompts().private, "private"
+                (await config_manager.get_prompts()).private, "private"
             )
 
     async def list_available_prompts(prompts: list[Any], prompt_type: str) -> None:
