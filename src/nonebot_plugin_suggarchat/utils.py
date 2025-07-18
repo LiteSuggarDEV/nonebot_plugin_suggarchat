@@ -457,10 +457,8 @@ async def synthesize_message(message: Message, bot: Bot) -> str:
             )
     return content
 
-
 async def write_memory_data_by_model(event: Event, data: MemoryModel):
     return await write_memory_data(event, data.model_dump())
-
 
 async def get_memory_data(event: Event) -> dict[str, Any]:
     """获取事件对应的记忆数据，如果不存在则创建初始数据"""
@@ -504,7 +502,6 @@ async def get_memory_data(event: Event) -> dict[str, Any]:
             if chat_manager.debug:
                 logger.debug(f"读取到记忆数据{conf}")
             return conf
-
 
 async def write_memory_data(event: Event, data: dict) -> None:
     """将记忆数据写入对应的文件"""
