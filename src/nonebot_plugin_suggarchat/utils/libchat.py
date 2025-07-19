@@ -71,8 +71,7 @@ async def tools_caller(
             logger.warning(f"[OpenAI] {name} 模型调用失败: {e}")
             err = e
             continue
-    else:
-        logger.warning("Tools调用因为没有OPENAI协议模型而失败")
+    logger.warning("Tools调用因为没有OPENAI协议模型而失败")
     if err is not None:
         raise err
     return ChatCompletionMessage(role="assistant", content="")
