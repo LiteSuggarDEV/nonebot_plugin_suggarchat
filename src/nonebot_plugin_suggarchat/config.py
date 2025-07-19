@@ -11,7 +11,7 @@ import nonebot_plugin_localstore as store
 import tomli
 import tomli_w
 from aiofiles import open
-from nonebot import get_driver, logger
+from nonebot import get_driver
 from pydantic import BaseModel
 
 __KERNEL_VERSION__ = "unknow"
@@ -82,7 +82,7 @@ class ToolsConfig(BaseModel):
 
 
 class PresetSwitch(BaseModel):
-    preset_list: list[str] = []
+    backup_preset_list: list[str] = []
 
 
 class CookieModel(BaseModel):
@@ -140,7 +140,7 @@ class CookieModel(BaseModel):
 
 
 class Config(BaseModel, extra="allow"):
-    preset: str = ModelPreset().name
+    preset: str = "default"
     preset_extension: PresetSwitch = PresetSwitch()
     tools: ToolsConfig = ToolsConfig()
     model: str = ""
@@ -362,7 +362,7 @@ class ConfigManager:
                 data["api_key"] = data["open_ai_api_key"]
                 del data["open_ai_api_key"]
             if config.preset == "__main__":
-                data["preset"] = "default"
+                config.preset = "default"
             return Config(**data)
 
         self.ins_config = config_fix(self.ins_config)
@@ -433,10 +433,6 @@ class ConfigManager:
         for model in await self.get_models():
             if model.name == preset:
                 return model
-        if fix:
-            logger.error(f"预设 {self.ins_config.preset} 未找到，重置为主配置")
-            self.ins_config.preset = "default"
-            await self.save_config()
         return await self.get_preset("default", fix, cache)
 
     async def get_prompts(self, cache: bool = False) -> Prompts:

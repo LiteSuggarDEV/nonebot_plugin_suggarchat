@@ -94,11 +94,15 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             content = await handle_reply(event.reply, bot, group_id, content)
 
         # 记录用户消息
-        is_multimodal: bool = (
-            await config_manager.get_preset(
-                preset=config_manager.config.preset, fix=True
-            )
-        ).multimodal
+        is_multimodal: bool = all(
+            [
+                (await config_manager.get_preset(preset=preset)).multimodal
+                for preset in [
+                    config_manager.config.preset,
+                    *config_manager.config.preset_extension.backup_preset_list,
+                ]
+            ]
+        )
 
         if config_manager.config.parse_segments:
             text = (
@@ -183,11 +187,15 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             content = await handle_reply(event.reply, bot, None, content)
 
         # 记录用户消息
-        is_multimodal: bool = (
-            await config_manager.get_preset(
-                preset=config_manager.config.preset, fix=True
-            )
-        ).multimodal
+        is_multimodal: bool = all(
+            [
+                (await config_manager.get_preset(preset=preset)).multimodal
+                for preset in [
+                    config_manager.config.preset,
+                    *config_manager.config.preset_extension.backup_preset_list,
+                ]
+            ]
+        )
 
         if config_manager.config.parse_segments:
             text = (
@@ -355,7 +363,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         控制记忆长度，删除超出限制的旧消息，移除不支持的消息。
         """
         is_multimodal = (
-            await config_manager.get_preset(config_manager.config.preset, fix=True)
+            await config_manager.get_preset(config_manager.config.preset)
         ).multimodal
         # Process multimodal messages when needed
         for message in data.memory.messages:
