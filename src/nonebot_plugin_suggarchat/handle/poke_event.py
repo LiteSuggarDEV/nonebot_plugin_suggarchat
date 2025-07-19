@@ -12,13 +12,13 @@ from ..chatmanager import chat_manager
 from ..config import config_manager
 from ..event import PokeEvent  # 自定义事件类型
 from ..matcher import MatcherManager  # 自定义匹配器
-from ..utils import (
-    get_chat,
-    get_friend_info,
-    get_memory_data,
-    send_to_admin,
+from ..utils.admin import send_to_admin
+from ..utils.functions import (
+    get_friend_name,
     split_message_into_chats,
 )
+from ..utils.libchat import get_chat
+from ..utils.memory import get_memory_data
 
 
 async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
@@ -64,7 +64,7 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
 
     async def handle_private_poke(event: PokeNotifyEvent, bot: Bot):
         """处理私聊中的戳一戳事件"""
-        name = await get_friend_info(event.user_id, bot)  # 获取好友信息
+        name = await get_friend_name(event.user_id, bot)  # 获取好友信息
         send_messages = [
             {"role": "system", "content": f"{config_manager.private_train}"},
             {

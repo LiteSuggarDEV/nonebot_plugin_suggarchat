@@ -6,7 +6,7 @@ from ..check_rule import (
     is_group_admin_if_is_in_group,
 )
 from ..config import config_manager
-from ..utils import get_memory_data, write_memory_data
+from ..utils.memory import get_memory_data, write_memory_data
 
 
 async def prompt(
@@ -39,14 +39,14 @@ async def prompt(
 
     # 根据用户输入的命令执行相应操作
     if arg.startswith("--(show)"):
-        await matcher.send(f"Prompt:\n{data.get('prompt', '未设置 prompt')}")
+        await matcher.send(f"Prompt:\n{data.prompt}")
         return
     elif arg.startswith("--(clear)"):
-        data["prompt"] = ""
+        data.prompt = ""
         await matcher.send("prompt 已清空。")
     elif arg.startswith("--(set)"):
         arg = arg.replace("--(set)", "").strip()
-        data["prompt"] = arg
+        data.prompt = arg
         await matcher.send(f"prompt 已设置为：\n{arg}")
     else:
         await matcher.send(

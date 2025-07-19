@@ -1,7 +1,7 @@
 import random
 import time
 
-from nonebot import logger
+from nonebot import get_driver, logger
 from nonebot.adapters.onebot.v11 import Bot
 from nonebot.adapters.onebot.v11.event import (
     GroupMessageEvent,
@@ -9,12 +9,13 @@ from nonebot.adapters.onebot.v11.event import (
 )
 
 from .config import config_manager
-from .utils import (
+from .utils.functions import (
     get_current_datetime_timestamp,
-    get_memory_data,
     synthesize_message,
-    write_memory_data,
 )
+from .utils.memory import get_memory_data, write_memory_data
+
+nb_config = get_driver().config
 
 
 async def is_bot_enabled() -> bool:
@@ -37,7 +38,9 @@ async def is_group_admin(event: GroupMessageEvent, bot: Bot) -> bool:
 
 
 async def is_bot_admin(event: MessageEvent, bot: Bot) -> bool:
-    return event.user_id in config_manager.config.admins
+    return event.user_id in config_manager.config.admins + [
+        int(user) for user in nb_config.superusers
+    ]
 
 
 async def is_group_admin_if_is_in_group(event: MessageEvent, bot: Bot) -> bool:
@@ -70,12 +73,11 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
         rate = config_manager.config.probability
 
         # 获取内存数据
-        memory_data: dict = await get_memory_data(event)
+        memory_data = await get_memory_data(event)
         if rand <= rate and (
-            config_manager.config.global_fake_people
-            or memory_data.get("fake_people", False)
+            config_manager.config.global_fake_people or memory_data.fake_people
         ):
-            memory_data["timestamp"] = time.time()
+            memory_data.timestamp = time.time()
             await write_memory_data(event, memory_data)
             return True
         # 合成消息内容

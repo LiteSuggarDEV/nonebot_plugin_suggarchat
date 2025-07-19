@@ -3,7 +3,7 @@ from nonebot.adapters.onebot.v11 import Bot, GroupMessageEvent, MessageEvent
 from nonebot.matcher import Matcher
 
 from ..check_rule import is_group_admin_if_is_in_group
-from ..utils import get_memory_data, write_memory_data
+from ..utils.memory import get_memory_data, write_memory_data
 
 
 async def del_memory(bot: Bot, event: MessageEvent, matcher: Matcher):

@@ -11,8 +11,7 @@ import nonebot_plugin_localstore as store
 import tomli
 import tomli_w
 from aiofiles import open
-from dotenv import load_dotenv
-from nonebot import logger
+from nonebot import get_driver, logger
 from pydantic import BaseModel
 
 __KERNEL_VERSION__ = "unknow"
@@ -22,9 +21,7 @@ __KERNEL_VERSION__ = "unknow"
 # 配置目录
 CONFIG_DIR: Path = store.get_plugin_config_dir()
 DATA_DIR: Path = store.get_plugin_data_dir()
-
-# 加载Dotenv
-load_dotenv()
+nb_config = get_driver().config
 
 
 def replace_env_vars(data: dict | list | str) -> dict | list | str:

@@ -3,7 +3,7 @@ from nonebot.adapters.onebot.v11 import Bot, GroupMessageEvent
 from nonebot.matcher import Matcher
 
 from ..check_rule import is_bot_admin
-from ..utils import get_memory_data, write_memory_data
+from ..utils.memory import get_memory_data, write_memory_data
 
 
 async def disable(bot: Bot, event: GroupMessageEvent, matcher: Matcher):

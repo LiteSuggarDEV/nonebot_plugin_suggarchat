@@ -5,19 +5,17 @@ from nonebot import logger
 from .chatmanager import chat_manager
 from .config import Config as Conf
 from .config import ConfigManager, config_manager
-from .utils import Tokenizer, get_chat, protocols_adapters, send_to_admin  # noqa: F401
+from .utils.admin import send_to_admin
+from .utils.libchat import (
+    get_chat,
+    protocols_adapters,
+)
 
 Config: ConfigManager = config_manager
 
 
 class Adapter:
     """用于处理Adapter注册的类"""
-
-    def __init__(self):
-        """
-        初始化 Adapter 类的新实例。
-        """
-        pass
 
     def register_adapter(self, func: Callable, protocol: str):
         """注册一个适配器。
@@ -72,12 +70,6 @@ class Menu:
     """
     Menu 类用于通过注册菜单项来构建菜单。
     """
-
-    def __init__(self):
-        """
-        初始化 Menu 类的新实例。
-        """
-        pass
 
     def reg_menu(self, cmd_name: str, describe: str, args: str = "") -> "Menu":
         """
