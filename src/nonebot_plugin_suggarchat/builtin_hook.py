@@ -8,7 +8,6 @@ from nonebot.adapters.onebot.v11 import Bot, MessageEvent
 from nonebot.exception import NoneBotException
 from nonebot.log import logger
 
-from .API import ToolsManager
 from .config import config_manager
 from .event import BeforeChatEvent, ChatEvent
 from .exception import (
@@ -22,6 +21,7 @@ from .utils.libchat import (
     tools_caller,
 )
 from .utils.llm_tools.builtin_tools import REPORT_TOOL, report
+from .utils.llm_tools.manager import ToolsManager
 from .utils.memory import (
     get_memory_data,
     write_memory_data,
