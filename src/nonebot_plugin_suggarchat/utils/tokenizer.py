@@ -1,9 +1,14 @@
 import re
+from typing import Literal
 
 import jieba
 
 
-def hybrid_token_count(text: str, mode: str = "word", truncate_mode="head") -> int:
+def hybrid_token_count(
+    text: str,
+    mode: Literal["word", "bpe", "char"] = "word",
+    truncate_mode: Literal["head", "tail", "middle"] = "head",
+) -> int:
     """
     计算中英文混合文本的 Token 数量，支持词、子词、字符模式
     """
@@ -12,7 +17,12 @@ def hybrid_token_count(text: str, mode: str = "word", truncate_mode="head") -> i
 
 
 class Tokenizer:
-    def __init__(self, max_tokens=2048, mode="bpe", truncate_mode="head"):
+    def __init__(
+        self,
+        max_tokens: int = 2048,
+        mode: Literal["word", "bpe", "char"] = "bpe",
+        truncate_mode: Literal["head", "tail", "middle"] = "head",
+    ):
         """
         通用文本分词器
 
