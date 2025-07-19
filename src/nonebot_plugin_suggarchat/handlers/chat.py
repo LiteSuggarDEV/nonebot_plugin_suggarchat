@@ -150,7 +150,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                 "content": str(response),
             }
         )
-        await send_response(event, response)  # type: ignore
+        await send_response(event, response)
 
         # 写入记忆数据
         await write_memory_data(event, group_data)
@@ -237,7 +237,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                 "content": str(response),
             }
         )
-        await send_response(event, response)  # type: ignore
+        await send_response(event, response)
 
         # 写入记忆数据
         await write_memory_data(event, private_data)
