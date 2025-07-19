@@ -10,6 +10,21 @@ from .utils.libchat import (
     get_chat,
     protocols_adapters,
 )
+from .utils.llm_tools.manager import ToolsManager
+from .utils.llm_tools.models import (
+    FunctionDefinitionSchema,
+    FunctionParametersSchema,
+    FunctionPropertySchema,
+    ToolData,
+    ToolFunctionSchema,
+)
+
+ToolData = ToolData
+ToolsManager = ToolsManager
+ToolFunctionSchema = ToolFunctionSchema
+FunctionPropertySchema = FunctionPropertySchema
+FunctionDefinitionSchema = FunctionDefinitionSchema
+FunctionParametersSchema = FunctionParametersSchema
 
 Config: ConfigManager = config_manager
 

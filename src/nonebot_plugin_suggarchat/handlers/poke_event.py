@@ -91,7 +91,7 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
                 model_response=[""],
                 user_id=event.user_id,
             )
-            await MatcherManager().trigger_event(poke_event, event)
+            await MatcherManager().trigger_event(poke_event, event, bot)
             send_messages = poke_event.get_send_message()
 
         # 获取聊天模型的回复
@@ -105,7 +105,7 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
                 model_response=[response],
                 user_id=event.user_id,
             )
-            await MatcherManager().trigger_event(poke_event, event)
+            await MatcherManager().trigger_event(poke_event, event, bot)
             response = poke_event.model_response
 
         # 如果开启调试模式，发送调试信息给管理员

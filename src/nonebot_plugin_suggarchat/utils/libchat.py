@@ -1,4 +1,5 @@
 from collections.abc import Callable, Coroutine
+from copy import deepcopy
 from typing import Any
 
 import nonebot
@@ -9,11 +10,72 @@ from nonebot.adapters.onebot.v11 import (
 )
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
+from openai.types.chat.chat_completion_message import ChatCompletionMessage
+from openai.types.chat.chat_completion_tool_choice_option_param import (
+    ChatCompletionToolChoiceOptionParam,
+)
 
 from ..chatmanager import chat_manager
 from ..config import Config, config_manager
 from .admin import send_to_admin_as_error
 from .functions import remove_think_tag
+
+
+async def tools_caller(
+    messages: list,
+    tools: list,
+    tool_choice: ChatCompletionToolChoiceOptionParam | None = None,
+) -> ChatCompletionMessage:
+    if not tool_choice:
+        tool_choice = (
+            "required"
+            if (
+                config_manager.config.tools.require_tools and len(tools) > 1
+            )  # 排除默认工具
+            else "auto"
+        )
+    config = config_manager.config
+    preset_list = deepcopy(config_manager.config.preset_extension.preset_list)
+    err: None | Exception = None
+    if not preset_list:
+        preset_list = ["default"]
+
+    for name in preset_list:
+        try:
+            preset = await config_manager.get_preset(name, fix=False, cache=False)
+
+            if preset.protocol not in ("__main__", "openai"):
+                continue
+            base_url = preset.base_url
+            key = preset.api_key
+            model = preset.model
+
+            logger.debug(f"开始获取 {preset.model} 的带有工具的对话")
+            logger.debug(f"预设：{name}")
+            logger.debug(f"密钥：{preset.api_key[:7]}...")
+            logger.debug(f"协议：{preset.protocol}")
+            logger.debug(f"API地址：{preset.base_url}")
+            client = openai.AsyncOpenAI(
+                base_url=base_url, api_key=key, timeout=config.llm_timeout
+            )
+            completion: ChatCompletion = await client.chat.completions.create(
+                model=model,
+                messages=messages,
+                stream=False,
+                tool_choice=tool_choice,
+                tools=tools,
+            )
+            return completion.choices[0].message
+
+        except Exception as e:
+            logger.warning(f"[OpenAI] {name} 模型调用失败: {e}")
+            err = e
+            continue
+    else:
+        logger.warning("Tools调用因为没有OPENAI协议模型而失败")
+    if err is not None:
+        raise err
+    return ChatCompletionMessage(role="assistant", content="")
 
 
 async def get_chat(
@@ -127,4 +189,4 @@ async def openai_get_chat(
 # 协议适配器映射
 protocols_adapters: dict[
     str, Callable[[str, str, str, list, int, Config, Bot], Coroutine[Any, Any, str]]
-] = {"openai-builtin": openai_get_chat}
+] = {"openai": openai_get_chat}

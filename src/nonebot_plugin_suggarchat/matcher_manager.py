@@ -6,21 +6,21 @@ from .check_rule import (
     is_bot_enabled,
     should_respond_to_message,
 )
-from .handle.add_notices import add_notices
-from .handle.chat import chat
-from .handle.choose_prompt import choose_prompt
-from .handle.debug_switchs import debug_switchs
-from .handle.del_memory import del_memory
-from .handle.disable import disable
-from .handle.enable import enable
-from .handle.fakepeople_switch import switch
-from .handle.menus import menu
-from .handle.poke_event import poke_event
-from .handle.presets import presets
-from .handle.prompt import prompt
-from .handle.recall import recall
-from .handle.sessions import sessions
-from .handle.set_preset import set_preset
+from .handlers.add_notices import add_notices
+from .handlers.chat import chat
+from .handlers.choose_prompt import choose_prompt
+from .handlers.debug_switchs import debug_switchs
+from .handlers.del_memory import del_memory
+from .handlers.disable import disable
+from .handlers.enable import enable
+from .handlers.fakepeople_switch import switch
+from .handlers.menus import menu
+from .handlers.poke_event import poke_event
+from .handlers.presets import presets
+from .handlers.prompt import prompt
+from .handlers.recall import recall
+from .handlers.sessions import sessions
+from .handlers.set_preset import set_preset
 
 on_notice(priority=5, block=False, rule=is_bot_enabled).append_handler(add_notices)
 on_notice(priority=5, block=False, rule=is_bot_enabled).append_handler(poke_event)

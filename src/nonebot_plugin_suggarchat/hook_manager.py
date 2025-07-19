@@ -3,7 +3,6 @@ import sys
 from collections.abc import Awaitable, Callable
 
 from nonebot import logger
-from nonebot.adapters.onebot.v11 import Bot
 
 hook_registry: list[Callable[..., None] | Callable[..., Awaitable[None]]] = []
 
@@ -14,7 +13,7 @@ def register_hook(hook_func: Callable[..., None] | Callable[..., Awaitable[None]
         logger.info(f"钩子注册: {hook_func.__module__}，{hook_func.__name__}")
 
 
-async def run_hooks(bot: Bot):
+async def run_hooks():
     for hook in hook_registry:
         if callable(hook):
             try:

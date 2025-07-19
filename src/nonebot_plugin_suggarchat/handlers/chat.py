@@ -128,7 +128,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         if chat_manager.debug:
             logger.debug(f"当前群组提示词：\n{config_manager.group_train}")
         # 控制记忆长度和 token 限制
-        enforce_memory_limit(group_data, memory_length_limit)
+        await enforce_memory_limit(group_data, memory_length_limit)
         tokens = await enforce_token_limit(
             group_data, copy.deepcopy(config_manager.group_train)
         )
@@ -211,7 +211,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         if chat_manager.debug:
             logger.debug(f"当前私聊提示词：\n{config_manager.private_train}")
         # 控制记忆长度和 token 限制
-        enforce_memory_limit(private_data, memory_length_limit)
+        await enforce_memory_limit(private_data, memory_length_limit)
         tokens = await enforce_token_limit(
             private_data, copy.deepcopy(config_manager.private_train)
         )
@@ -350,13 +350,13 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             role, "[获取身份失败]"
         )
 
-    def enforce_memory_limit(data: MemoryModel, memory_length_limit: int):
+    async def enforce_memory_limit(data: MemoryModel, memory_length_limit: int):
         """
         控制记忆长度，删除超出限制的旧消息，移除不支持的消息。
         """
-        is_multimodal = config_manager.get_preset(
-            config_manager.config.preset, fix=True
-        )
+        is_multimodal = (
+            await config_manager.get_preset(config_manager.config.preset, fix=True)
+        ).multimodal
         # Process multimodal messages when needed
         for message in data.memory.messages:
             if (
@@ -371,11 +371,12 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                 message["content"] = message_text
 
         # Enforce memory length limit
-        while (
-            len(data.memory.messages) > memory_length_limit
-            or (data.memory.messages[0]["role"] != "user")
-        ) and len(data.memory.messages) > 0:
-            del data.memory.messages[0]
+        while len(data.memory.messages) > 0:
+            if (
+                len(data.memory.messages) > memory_length_limit
+                or data.memory.messages[0]["role"] != "user"
+            ):
+                del data.memory.messages[0]
 
     async def enforce_token_limit(data: MemoryModel, train: dict[str, Any]) -> int:
         """
@@ -467,7 +468,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                 model_response=[""],
                 user_id=event.user_id,
             )
-            await MatcherManager().trigger_event(chat_event, event)
+            await MatcherManager().trigger_event(chat_event, event, bot)
             send_messages = chat_event.get_send_message()
 
         response = await get_chat(send_messages, tokens=tokens)
@@ -479,7 +480,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                 model_response=[response],
                 user_id=event.user_id,
             )
-            await MatcherManager().trigger_event(chat_event, event)
+            await MatcherManager().trigger_event(chat_event, event, bot)
             response = chat_event.model_response
         if (
             await config_manager.get_preset(config_manager.config.preset)
