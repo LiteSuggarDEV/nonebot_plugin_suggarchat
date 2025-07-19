@@ -139,6 +139,7 @@ async def get_chat(
         raise err
     return ""
 
+
 async def openai_get_chat(
     base_url: str,
     model: str,
