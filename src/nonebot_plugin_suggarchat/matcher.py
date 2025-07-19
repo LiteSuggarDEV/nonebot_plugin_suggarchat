@@ -126,14 +126,8 @@ class Matcher:
 
 
 class MatcherManager:
-    _instance = None
-
-    def __new__(cls) -> Self:
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    async def trigger_event(self, *args, **kwargs):
+    @staticmethod
+    async def trigger_event(*args, **kwargs):
         """
         触发特定类型的事件，并调用该类型的所有注册事件处理程序。
 
