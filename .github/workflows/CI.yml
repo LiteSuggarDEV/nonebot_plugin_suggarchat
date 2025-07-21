@@ -8,7 +8,7 @@ on:
       - '**'    # 监控所有文件变更
 
 jobs:
-  build:
+  check:
     if: ${{ !contains(github.event.head_commit.message, '[ci skip]') && !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-latest
 

@@ -5,7 +5,7 @@ import re
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import nonebot_plugin_localstore as store
 import tomli
@@ -167,7 +167,7 @@ class Config(BaseModel, extra="allow"):
     admins: list[int] = []
     stream: bool = False
     max_tokens: int = 100
-    tokens_count_mode: str = "bpe"
+    tokens_count_mode: Literal["word", "bpe", "char"] = "bpe"
     session_max_tokens: int = 5000
     enable_tokens_limit: bool = True
     llm_timeout: int = 60

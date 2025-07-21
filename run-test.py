@@ -13,6 +13,7 @@ os.environ["LOG_LEVEL"] = "DEBUG"
 os.environ["LOCALSTORE_USE_CWD"] = "true"
 os.environ["LOCALSTORE_CONFIG_DIR"] = "./config"
 
+
 class LoadError(Exception):
     def __init__(self, data: Any):
         self.data = data
