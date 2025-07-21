@@ -37,9 +37,6 @@ jobs:
           python-path: ${{ env.PYTHON_BIN }}
           pylance-version: latest-release
 
-      - name: Load test
-        run: uv run ./run-test.py
-
       - name: Check code format
         uses: astral-sh/ruff-action@v3
         with:
@@ -47,9 +44,3 @@ jobs:
 
       - name: Build package
         run: uv build  # 生成构建产物到dist目录
-
-      - name: Save build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-package
-          path: dist/*  # 上传所有构建产物

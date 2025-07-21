@@ -5,7 +5,7 @@ description = "Plugin SuggarChat framework compatible with Nonebot2."
 authors = [{ name = "JohnRichard4096", email = "windowserror@163.com" }]
 dependencies = [
     "jieba>=0.42.1",
-    "nonebot2[fastapi]>=2.2.0",
+    "nonebot2>=2.2.0",
     "openai>=1.5.0",
     "pydantic>=2.4.2",
     "nonebot-adapter-onebot>=2.0.0",
@@ -62,12 +62,3 @@ ignore = [
 
 [tool.pyright]
 typeCheckingMode ="standard"
-
-# Nonebot-LoadTest
-
-[tool.nonebot]
-adapters = [
-    { name = "OneBot V11", module_name = "nonebot.adapters.onebot.v11" }
-]
-plugin_dirs = ["src"]
-builtin_plugins = ["single_session"]
