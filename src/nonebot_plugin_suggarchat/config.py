@@ -11,7 +11,7 @@ import nonebot_plugin_localstore as store
 import tomli
 import tomli_w
 from aiofiles import open
-from nonebot import get_driver
+from nonebot import get_driver, logger
 from pydantic import BaseModel
 
 __KERNEL_VERSION__ = "unknow"
@@ -302,6 +302,9 @@ class ConfigManager:
 
     async def load(self):
         """_初始化配置目录_"""
+        logger.info("正在初始化存储目录...")
+        logger.debug(f"配置目录: {self.config_dir}")
+        logger.debug(f"数据目录：{self.data_dir}")
         os.makedirs(self.config_dir, exist_ok=True)
         os.makedirs(self.data_dir, exist_ok=True)
         os.makedirs(self.group_memory, exist_ok=True)

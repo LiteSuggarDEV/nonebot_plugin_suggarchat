@@ -23,7 +23,7 @@ suggar matcher
 """
 
 
-class FunctionData(BaseModel):
+class FunctionData(BaseModel, arbitrary_types_allowed=True):
     function: Callable[..., Awaitable[Any]] = Field(...)
     signature: inspect.Signature = Field(...)
     frame: FrameType = Field(...)
@@ -142,17 +142,17 @@ class MatcherManager:
                 event = i
                 break
         if not event:
-            logger.error("Expecting event,but got nothing.")
+            logger.error("事件必须被传入，但是是没有找到！")
             return
         event_type = event.get_event_type()  # 获取事件类型
         priority_tmp = 0
-        logger.info(f"Running matcher for event: {event_type}")
+        logger.info(f"正在为事件: {event_type} 运行matcher!")
         # 检查是否有处理该事件类型的处理程序
         if matcher_list := event_registry.get_handlers(event_type):
             for matcher in matcher_list:
                 if matcher.priority != priority_tmp:
                     priority_tmp = matcher.priority
-                    logger.info(f"Running matchers on priority {priority_tmp} ......")
+                    logger.info(f"为优先级 {priority_tmp} 运行Matcher......")
 
                 signature = matcher.signature
                 frame = matcher.frame
@@ -169,8 +169,8 @@ class MatcherManager:
                 if args_types != filtered_args_types:
                     failed_args = list(args_types.keys() - filtered_args_types.keys())
                     logger.warning(
-                        f"Matcher {matcher.function.__name__} (File: {file_name}: Line {frame.f_lineno!s}) has some parameters with no type annotation"
-                        + f"(Args:{''.join(i + ',' for i in failed_args)}).Skipping......"
+                        f"匹配器 {matcher.function.__name__} (File: {file_name}: Line {frame.f_lineno!s}) 有没有类型注解的参数！"
+                        + f"(Args:{''.join(i + ',' for i in failed_args)}).跳过......"
                     )
                     continue
                 new_args = []
@@ -200,20 +200,20 @@ class MatcherManager:
                 # 调用处理程序
 
                 try:
-                    logger.info(f"Start running matcher '{handler.__name__}'")
+                    logger.info(f"开始运行Matcher: '{handler.__name__}'")
 
                     await handler(*new_args_tuple, **f_kwargs)
 
                 except ProcessException as e:
-                    logger.info("Stopped nonebot process.")
+                    logger.info("停止Nonebot处理")
                     raise e
                 except PassException:
                     logger.info(
-                        f"Matcher '{handler.__name__}'(~{file_name}:{line_number}) passed"
+                        f"Matcher '{handler.__name__}'(~{file_name}:{line_number}) 已跳过"
                     )
                     continue
                 except CancelException:
-                    logger.info("Canceled SuggarMatcher process.")
+                    logger.info("取消了Matcher处理")
                     return
                 except BlockException:
                     break
@@ -221,7 +221,7 @@ class MatcherManager:
                     raise
                 except Exception:
                     logger.error(
-                        f"Something wrong has happend while running matcher at '{handler.__name__}'({file_name}:{line_number}) "
+                        f"运行时发生了错误 '{handler.__name__}'({file_name}:{line_number}) "
                     )
                     exc_type, exc_value, exc_traceback = sys.exc_info()
                     logger.error(
@@ -236,8 +236,8 @@ class MatcherManager:
                     logger.error(back)
                     continue
                 finally:
-                    logger.info(f"Handler {handler.__name__} task has done.")
+                    logger.info(f"处理器 {handler.__name__} 已结束")
                     if matcher.block:
                         break
         else:
-            logger.info(f"No matcher for event {event_type} was matched,skipping......")
+            logger.info(f"没有为 {event_type} 事件注册的Matcher，跳过处理。")

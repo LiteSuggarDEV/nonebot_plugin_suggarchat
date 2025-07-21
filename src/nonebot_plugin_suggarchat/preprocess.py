@@ -12,9 +12,12 @@ driver = get_driver()
 @driver.on_startup
 async def onEnable():
     kernel_version = "unknown"
-    kernel_version = metadata.version("nonebot_plugin_suggarchat")
-    config.__KERNEL_VERSION__ = kernel_version
-    logger.info(f"Loading SuggarChat V{kernel_version}")
+    try:
+        kernel_version = metadata.version("nonebot_plugin_suggarchat")
+        config.__KERNEL_VERSION__ = kernel_version
+    except Exception:
+        logger.error("无法获取到版本!")
+    logger.info(f"Loading SuggarChat V {kernel_version}")
     await config_manager.load()
     await run_hooks()
-    logger.info("Start successfully!Waitting for bot connection...")
+    logger.info("成功启动！")

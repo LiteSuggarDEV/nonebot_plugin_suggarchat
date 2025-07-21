@@ -1,15 +1,14 @@
-name: CI/CD Pipeline
+name: Pull Requests CI/CD Pipeline
 
 on:
-  push:
-    branches:
-      - '**'  # 指定触发分支
-    paths:
-      - '**'    # 监控所有文件变更
+  pull_request:
+     branches:
+      - "**"
+     paths:
+      - "**"
 
 jobs:
   build:
-    if: ${{ !contains(github.event.head_commit.message, '[ci skip]') && !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-latest
 
     steps:
@@ -31,6 +30,7 @@ jobs:
         run: |
           PYTHON_BIN="$(uv run python -c 'import sys; print(sys.executable)')"
           echo "PYTHON_BIN=$PYTHON_BIN" >> $GITHUB_ENV
+
       - name: Run Pyright
         uses: jakebailey/pyright-action@v2
         with:
@@ -46,10 +46,10 @@ jobs:
           args: check . --exit-non-zero-on-fix
 
       - name: Build package
-        run: uv build  # 生成构建产物到dist目录
+        run: uv build # 生成构建产物到dist目录
 
       - name: Save build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: python-package
-          path: dist/*  # 上传所有构建产物
+          path: dist/* # 上传所有构建产物
