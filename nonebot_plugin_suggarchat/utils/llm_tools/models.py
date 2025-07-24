@@ -19,7 +19,7 @@ class FunctionParametersSchema(BaseModel):
     properties: dict[str, FunctionPropertySchema] = Field(
         ..., description="参数属性定义"
     )
-    required: list[str] | None = Field(None, description="必需参数列表")
+    required: list[str] = Field([], description="必需参数列表")
 
 
 class FunctionDefinitionSchema(BaseModel):

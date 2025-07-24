@@ -10,7 +10,7 @@ from nonebot.matcher import Matcher
 
 from ..chatmanager import chat_manager
 from ..config import config_manager
-from ..event import PokeEvent  # 自定义事件类型
+from ..event import BeforePokeEvent, PokeEvent  # 自定义事件类型
 from ..matcher import MatcherManager  # 自定义匹配器
 from ..utils.admin import send_to_admin
 from ..utils.functions import (
@@ -85,7 +85,7 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
         if config_manager.config.matcher_function:
             # 触发自定义事件前置处理
 
-            poke_event = PokeEvent(
+            poke_event = BeforePokeEvent(
                 nbevent=event,
                 send_message=send_messages,
                 model_response=[""],

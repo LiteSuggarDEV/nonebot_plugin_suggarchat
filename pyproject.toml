@@ -62,3 +62,7 @@ ignore = [
 
 [tool.pyright]
 typeCheckingMode ="standard"
+
+[tool.nonebot]
+plugins=["nonebot_plugin_suggarchat"]
+adapters = [{name = "OneBot V11", module_name = "nonebot.adapters.onebot.v11"}]

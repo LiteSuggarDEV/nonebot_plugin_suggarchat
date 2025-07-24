@@ -2,9 +2,10 @@ from nonebot.plugin import PluginMetadata, require
 
 require("nonebot_plugin_localstore")
 
-from . import config, matcher_manager, preprocess
+from . import builtin_hook, config, matcher_manager, preprocess
 
 __all__ = [
+    "builtin_hook",
     "config",
     "matcher_manager",
     "preprocess",

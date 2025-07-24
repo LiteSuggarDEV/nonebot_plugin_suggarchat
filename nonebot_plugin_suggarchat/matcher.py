@@ -34,12 +34,11 @@ class FunctionData(BaseModel, arbitrary_types_allowed=True):
 
 class EventRegistry:
     _instance = None
-    __event_handlers: ClassVar[dict[str, list[FunctionData]]]
+    __event_handlers: ClassVar[dict[str, list[FunctionData]]] = {}
 
     def __new__(cls) -> Self:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls.__event_handlers = {}
         return cls._instance
 
     def register_handler(self, event_type: str, data: FunctionData):
@@ -52,10 +51,6 @@ class EventRegistry:
 
     def _all(self) -> dict[str, list[FunctionData]]:
         return self.__event_handlers
-
-
-event_registry = EventRegistry()
-
 
 class Matcher:
     def __init__(self, event_type: str, priority: int = 10, block: bool = True):
@@ -89,7 +84,7 @@ class Matcher:
                 block=self.block,
                 matcher=self,
             )
-            event_registry.register_handler(self.event_type, func_data)
+            EventRegistry().register_handler(self.event_type, func_data)
             return func
 
         return wrapper
@@ -148,7 +143,7 @@ class MatcherManager:
         priority_tmp = 0
         logger.info(f"正在为事件: {event_type} 运行matcher!")
         # 检查是否有处理该事件类型的处理程序
-        if matcher_list := event_registry.get_handlers(event_type):
+        if matcher_list := EventRegistry().get_handlers(event_type):
             for matcher in matcher_list:
                 if matcher.priority != priority_tmp:
                     priority_tmp = matcher.priority
@@ -159,7 +154,7 @@ class MatcherManager:
                 line_number = frame.f_lineno
                 file_name = frame.f_code.co_filename
                 handler = matcher.function
-                session_args = [matcher.matcher, *deepcopy(args)]
+                session_args = [matcher.matcher, *args]
                 session_kwargs = {**deepcopy(kwargs)}
 
                 args_types = {k: v.annotation for k, v in signature.parameters.items()}
@@ -192,10 +187,10 @@ class MatcherManager:
                     for param_name, param in kwparams.items()
                     if param.annotation in session_kwargs
                 }
-                if (len(list(f_kwargs)) != len(list(kwparams))) or (
+                if (
                     len(new_args_tuple) != len(list(filtered_args_types))
                 ):
-                    continue  # 处理依赖
+                    continue
 
                 # 调用处理程序
 

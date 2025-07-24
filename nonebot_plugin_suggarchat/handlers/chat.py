@@ -24,7 +24,7 @@ from nonebot.matcher import Matcher
 
 from ..chatmanager import chat_manager
 from ..config import config_manager
-from ..event import ChatEvent
+from ..event import BeforeChatEvent, ChatEvent
 from ..exception import CancelException
 from ..matcher import MatcherManager
 from ..utils.admin import (
@@ -385,6 +385,8 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                 or data.memory.messages[0]["role"] != "user"
             ):
                 del data.memory.messages[0]
+            else:
+                break
 
     async def enforce_token_limit(data: MemoryModel, train: dict[str, Any]) -> int:
         """
@@ -394,9 +396,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         memory_l = [train, *copy.deepcopy(data.memory.messages.copy())]  # type: list[dict]
         full_string = ""
         for st in memory_l:
-            if not st.get("content"):
-                await send_to_admin_as_error("API返回内容错误,请检查api!(疑似被夹了)")
-            elif isinstance(st["content"], str):
+            if isinstance(st["content"], str):
                 full_string += st["content"]
             else:
                 temp_string = ""
@@ -470,7 +470,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         调用聊天模型生成回复，并触发相关事件。
         """
         if config_manager.config.matcher_function:
-            chat_event = ChatEvent(
+            chat_event = BeforeChatEvent(
                 nbevent=event,
                 send_message=send_messages,
                 model_response=[""],

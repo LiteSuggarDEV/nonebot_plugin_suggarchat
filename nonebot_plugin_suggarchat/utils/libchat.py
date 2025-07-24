@@ -39,7 +39,6 @@ async def tools_caller(
     err: None | Exception = None
     if not preset_list:
         preset_list = ["default"]
-
     for name in preset_list:
         try:
             preset = await config_manager.get_preset(name, cache=False)

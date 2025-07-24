@@ -44,8 +44,8 @@ class ToolsManager:
     def tools_meta(self) -> dict[str, ToolFunctionSchema]:
         return {k: v.data for k, v in self._models.items()}
 
-    def tools_meta_dict(self) -> dict[str, dict[str, Any]]:
-        return {k: v.data.model_dump() for k, v in self._models.items()}
+    def tools_meta_dict(self,**kwargs) -> dict[str, dict[str, Any]]:
+        return {k: v.data.model_dump(**kwargs) for k, v in self._models.items()}
 
     def register_tool(self, tool: ToolData) -> None:
         if tool.data.function.name not in self._models:

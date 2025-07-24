@@ -52,8 +52,8 @@ async def love_handler(event: BeforeChatEvent) -> None:
         try:
             tools: list[dict[str, Any]] = []
             if config.tools.enable_report:
-                tools.append(REPORT_TOOL.model_dump())
-            tools.extend(ToolsManager().tools_meta_dict().values())
+                tools.append(REPORT_TOOL.model_dump(exclude_none=True))
+            tools.extend(ToolsManager().tools_meta_dict(exclude_none=True).values())
             response_msg = await tools_caller(
                 [
                     *deepcopy([i for i in msg_list if i["role"] == "system"]),
