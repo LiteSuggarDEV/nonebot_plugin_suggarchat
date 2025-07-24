@@ -44,7 +44,7 @@ class ToolsManager:
     def tools_meta(self) -> dict[str, ToolFunctionSchema]:
         return {k: v.data for k, v in self._models.items()}
 
-    def tools_meta_dict(self,**kwargs) -> dict[str, dict[str, Any]]:
+    def tools_meta_dict(self, **kwargs) -> dict[str, dict[str, Any]]:
         return {k: v.data.model_dump(**kwargs) for k, v in self._models.items()}
 
     def register_tool(self, tool: ToolData) -> None:

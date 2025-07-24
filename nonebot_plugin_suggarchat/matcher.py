@@ -52,6 +52,7 @@ class EventRegistry:
     def _all(self) -> dict[str, list[FunctionData]]:
         return self.__event_handlers
 
+
 class Matcher:
     def __init__(self, event_type: str, priority: int = 10, block: bool = True):
         """构造函数，初始化Matcher对象。
@@ -187,9 +188,7 @@ class MatcherManager:
                     for param_name, param in kwparams.items()
                     if param.annotation in session_kwargs
                 }
-                if (
-                    len(new_args_tuple) != len(list(filtered_args_types))
-                ):
+                if len(new_args_tuple) != len(list(filtered_args_types)):
                     continue
 
                 # 调用处理程序
