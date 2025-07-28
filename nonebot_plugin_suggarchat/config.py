@@ -56,13 +56,17 @@ class ModelPreset(BaseModel, extra="allow"):
     @classmethod
     def load(cls, path: Path):
         if path.exists():
-            with path.open("r", encoding="utf-8") as f:
+            with path.open(
+                "r",
+            ) as f:
                 data = json.load(f)
             return cls(**data)
         return cls()  # 返回默认值
 
     def save(self, path: Path):
-        with path.open("w", encoding="utf-8") as f:
+        with path.open(
+            "w",
+        ) as f:
             json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)
 
     def __getattr__(self, item) -> str:
@@ -73,6 +77,10 @@ class ModelPreset(BaseModel, extra="allow"):
         raise AttributeError(
             f"'{self.__class__.__name__}' object has no attribute '{item}'"
         )
+
+
+class Encoding(BaseModel):
+    force_utf8: bool = True
 
 
 class ToolsConfig(BaseModel):
@@ -180,6 +188,7 @@ class Config(BaseModel, extra="allow"):
     session_control_time: int = 60
     session_control_history: int = 10
     cookies: CookieModel = CookieModel()
+    encoding_settings: Encoding = Encoding()
     group_prompt_character: str = "default"
     private_prompt_character: str = "default"
     after_deleted_say_what: list[str] = [
@@ -229,7 +238,9 @@ class Config(BaseModel, extra="allow"):
     @classmethod
     def load_from_json(cls, path: Path) -> "Config":
         """从 JSON 文件加载配置"""
-        with path.open("r", encoding="utf-8") as f:
+        with path.open(
+            "r",
+        ) as f:
             data: dict = json.load(f)
         return cls(**data)
 
@@ -262,13 +273,17 @@ class Prompts:
     def save_group(self, path: Path):
         """保存群组提示词"""
         for prompt in self.group:
-            with (path / f"{prompt.name}.txt").open("w", encoding="utf-8") as f:
+            with (path / f"{prompt.name}.txt").open(
+                "w",
+            ) as f:
                 f.write(prompt.text)
 
     def save_private(self, path: Path):
         """保存私聊提示词"""
         for prompt in self.private:
-            with (path / f"{prompt.name}.txt").open("w", encoding="utf-8") as f:
+            with (path / f"{prompt.name}.txt").open(
+                "w",
+            ) as f:
                 f.write(prompt.text)
 
 
@@ -318,7 +333,9 @@ class ConfigManager:
 
         # 处理配置文件转换
         if self.json_config.exists():
-            async with open(str(self.json_config), encoding="utf-8") as f:
+            async with open(
+                str(self.json_config),
+            ) as f:
                 data: dict = json.loads(await f.read())
 
             # 判断是否有抛弃的字段需要转移
@@ -326,7 +343,8 @@ class ConfigManager:
                 prompt_old = data["private_train"]["content"]
                 if not (self.private_prompts / "default.txt").is_file():
                     async with open(
-                        str(self.private_prompts / "default.txt"), "w", encoding="utf-8"
+                        str(self.private_prompts / "default.txt"),
+                        "w",
                     ) as f:
                         await f.write(prompt_old)
                 del data["private_train"]
@@ -334,7 +352,8 @@ class ConfigManager:
                 prompt_old = data["group_train"]["content"]
                 if not (self.group_prompts / "default.txt").is_file():
                     async with open(
-                        str(self.group_prompts / "default.txt"), "w", encoding="utf-8"
+                        str(self.group_prompts / "default.txt"),
+                        "w",
                     ) as f:
                         await f.write(prompt_old)
                 del data["group_train"]
@@ -367,23 +386,29 @@ class ConfigManager:
 
         # private_train
         if self.private_prompt.is_file():
-            async with open(self.private_prompt, encoding="utf-8") as f:
+            async with open(
+                self.private_prompt,
+            ) as f:
                 prompt_private_temp = await f.read()
             os.rename(self.private_prompt, self.private_prompt.with_suffix(".old"))
         if not (self.private_prompts / "default.txt").is_file():
             async with open(
-                str(self.private_prompts / "default.txt"), "w", encoding="utf-8"
+                str(self.private_prompts / "default.txt"),
+                "w",
             ) as f:
                 await f.write(prompt_private_temp)
 
         # group_train
         if self.group_prompt.is_file():
-            async with open(str(self.group_prompt), encoding="utf-8") as f:
+            async with open(
+                str(self.group_prompt),
+            ) as f:
                 prompt_group_temp = await f.read()
             os.rename(self.group_prompt, self.group_prompt.with_suffix(".old"))
         if not (self.group_prompts / "default.txt").is_file():
             async with open(
-                str(self.group_prompts / "default.txt"), "w", encoding="utf-8"
+                str(self.group_prompts / "default.txt"),
+                "w",
             ) as f:
                 await f.write(prompt_group_temp)
 
@@ -438,11 +463,15 @@ class ConfigManager:
             return self.prompts
         self.prompts = Prompts()
         for file in self.private_prompts.glob("*.txt"):
-            async with open(str(file), encoding="utf-8") as f:
+            async with open(
+                str(file),
+            ) as f:
                 prompt = await f.read()
             self.prompts.private.append(Prompt(prompt, file.stem))
         for file in self.group_prompts.glob("*.txt"):
-            async with open(str(file), encoding="utf-8") as f:
+            async with open(
+                str(file),
+            ) as f:
                 prompt = await f.read()
             self.prompts.group.append(Prompt(prompt, file.stem))
         if not self.prompts.private:

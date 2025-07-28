@@ -73,7 +73,10 @@ async def get_memory_data(event: Event) -> MemoryModel:
             group_id: int = event.group_id
             conf_path = Path(group_memory / f"{group_id}.json")
             if not conf_path.exists():
-                async with aiofiles.open(str(conf_path), "w", encoding="utf-8") as f:
+                async with aiofiles.open(
+                    str(conf_path),
+                    "w",
+                ) as f:
                     await f.write(str(MemoryModel(id=group_id)))
         elif (
             not isinstance(event, PrivateMessageEvent)
@@ -82,11 +85,16 @@ async def get_memory_data(event: Event) -> MemoryModel:
             user_id = event.user_id
             conf_path = Path(private_memory / f"{user_id}.json")
             if not conf_path.exists():
-                async with aiofiles.open(str(conf_path), "w", encoding="utf-8") as f:
+                async with aiofiles.open(
+                    str(conf_path),
+                    "w",
+                ) as f:
                     await f.write(str(MemoryModel(id=user_id)))
         assert conf_path is not None, "conf_path is None"
         convert_to_utf8(conf_path)
-        async with aiofiles.open(str(conf_path), encoding="utf-8") as f:
+        async with aiofiles.open(
+            str(conf_path),
+        ) as f:
             conf = MemoryModel(**json.loads(await f.read()))
             if chat_manager.debug:
                 logger.debug(f"读取到记忆数据{conf}")
@@ -114,7 +122,8 @@ async def write_memory_data(event: Event, data: MemoryModel) -> None:
                 conf_path = Path(group_memory / f"{group_id}.json")
                 if not conf_path.exists():
                     async with aiofiles.open(
-                        str(conf_path), "w", encoding="utf-8"
+                        str(conf_path),
+                        "w",
                     ) as f:
                         await f.write(
                             str(
@@ -128,7 +137,8 @@ async def write_memory_data(event: Event, data: MemoryModel) -> None:
                 conf_path = Path(private_memory / f"{user_id}.json")
                 if not conf_path.exists():
                     async with aiofiles.open(
-                        str(conf_path), "w", encoding="utf-8"
+                        str(conf_path),
+                        "w",
                     ) as f:
                         await f.write(
                             str(
@@ -138,5 +148,8 @@ async def write_memory_data(event: Event, data: MemoryModel) -> None:
                             )
                         )
         assert conf_path is not None
-        async with aiofiles.open(str(conf_path), "w", encoding="utf-8") as f:
+        async with aiofiles.open(
+            str(conf_path),
+            "w",
+        ) as f:
             await f.write(str(data.model_dump_json()))

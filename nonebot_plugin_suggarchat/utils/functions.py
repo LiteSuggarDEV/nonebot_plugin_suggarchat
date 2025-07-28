@@ -119,6 +119,8 @@ def split_message_into_chats(text: str, max_length: int = 100) -> list[str]:
 
 def convert_to_utf8(file_path) -> bool:
     """将文件编码转换为 UTF-8"""
+    if not config_manager.config.encoding_settings.force_utf8:
+        return False
     file_path = str(file_path)
     with open(file_path, "rb") as file:
         raw_data = file.read()
