@@ -1,8 +1,8 @@
 [project]
 name = "nonebot_plugin_suggarchat"
-version = "3.0.1"
-description = "Plugin SuggarChat framework compatible with Nonebot2."
-authors = [{ name = "JohnRichard4096", email = "windowserror@163.com" }]
+version = "3.0.1.post1"
+description = "SuggarChat chat framework"
+authors = [{ name = "LiteSuggarDEV", email = "windowserror@163.com" }]
 dependencies = [
     "jieba>=0.42.1",
     "nonebot2[fastapi]>=2.2.0",

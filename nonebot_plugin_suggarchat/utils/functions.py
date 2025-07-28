@@ -51,11 +51,15 @@ def remove_think_tag(text: str) -> str:
 async def is_member(event: GroupMessageEvent, bot: Bot) -> bool:
     """判断用户是否为群组普通成员"""
     # 获取群成员信息
-    user_role = await bot.get_group_member_info(
-        group_id=event.group_id, user_id=event.user_id
+    user_role = (
+        (
+            await bot.get_group_member_info(
+                group_id=event.group_id, user_id=event.user_id
+            )
+        )["role"]
+        if not event.sender.role
+        else event.sender.role
     )
-    # 判断角色是否为普通成员
-    user_role = user_role.get("role")
     return user_role == "member"
 
 

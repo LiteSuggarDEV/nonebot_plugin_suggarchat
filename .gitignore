@@ -175,6 +175,7 @@ cython_debug/
 #Suggar files
 config/
 group/
+data/
 private/
 bot.py
 .env.dev

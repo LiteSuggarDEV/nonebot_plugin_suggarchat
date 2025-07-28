@@ -26,10 +26,14 @@ async def is_group_admin(event: GroupMessageEvent, bot: Bot) -> bool:
     is_admin: bool = False
     try:
         role: str = (
-            await bot.get_group_member_info(
-                group_id=event.group_id, user_id=event.user_id
-            )
-        )["role"]
+            (
+                await bot.get_group_member_info(
+                    group_id=event.group_id, user_id=event.user_id
+                )
+            )["role"]
+            if not event.sender.role
+            else event.sender.role
+        )
         if role != "member" or event.user_id in config_manager.config.admins:
             is_admin = True
     except Exception:
@@ -88,10 +92,14 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
 
         # 获取用户角色信息
         role = (
-            await bot.get_group_member_info(
-                group_id=event.group_id, user_id=event.user_id
+            (
+                await bot.get_group_member_info(
+                    group_id=event.group_id, user_id=event.user_id
+                )
             )
-        )["role"]
+            if not event.sender.role
+            else event.sender.role
+        )
         if role == "admin":
             role = "群管理员"
         elif role == "owner":
@@ -102,10 +110,12 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
         # 获取用户 ID 和昵称
         user_id = event.user_id
         user_name = (
-            await bot.get_group_member_info(
-                group_id=event.group_id, user_id=event.user_id
-            )
-        )["nickname"]
+            (await bot.get_group_member_info(group_id=event.group_id, user_id=user_id))[
+                "nickname"
+            ]
+            if not event.sender.nickname
+            else event.sender.nickname
+        )
 
         # 生成消息内容并记录到内存
         content_message = f"[{role}][{Date}][{user_name}（{user_id}）]说:{content}"

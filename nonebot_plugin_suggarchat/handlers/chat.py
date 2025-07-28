@@ -77,8 +77,12 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         group_id = event.group_id
         user_id = event.user_id
         user_name = (
-            await bot.get_group_member_info(group_id=group_id, user_id=user_id)
-        )["nickname"]
+            (await bot.get_group_member_info(group_id=group_id, user_id=user_id))[
+                "nickname"
+            ]
+            if not event.sender.nickname
+            else event.sender.nickname
+        )
         content = await synthesize_message(event.get_message(), bot)
 
         if content.strip() == "":
