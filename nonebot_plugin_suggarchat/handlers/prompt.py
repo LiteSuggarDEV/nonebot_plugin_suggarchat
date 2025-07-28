@@ -17,7 +17,7 @@ async def prompt(
     # 检查是否允许自定义 prompt，不允许则结束处理
     if not await is_group_admin_if_is_in_group(event, bot):
         await matcher.finish("权限不足")
-    if not config_manager.config.allow_custom_prompt:
+    if not config_manager.config.function.allow_custom_prompt:
         await matcher.finish("当前不允许自定义 prompt。")
 
     # 获取当前事件的记忆数据

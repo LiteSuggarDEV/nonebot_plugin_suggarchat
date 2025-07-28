@@ -15,7 +15,7 @@ async def menu(matcher: Matcher):
         msg += f"\n{menus['cmd']} {menus['describe']}"
 
     # 根据配置添加群聊或私聊的提示信息
-    msg += f"\n{'群内可以at我与我聊天，' if config_manager.config.enable_group_chat else '未启用群内聊天，'}{'在私聊可以直接聊天。' if config_manager.config.enable_group_chat else '未启用私聊聊天'}\nPowered by Suggar chat plugin"
+    msg += f"\n{'群内可以at我与我聊天，' if config_manager.config.function.enable_group_chat else '未启用群内聊天，'}{'在私聊可以直接聊天。' if config_manager.config.function.enable_group_chat else '未启用私聊聊天'}\nPowered by Suggar chat plugin"
 
     # 发送最终消息内容
     await matcher.send(msg)

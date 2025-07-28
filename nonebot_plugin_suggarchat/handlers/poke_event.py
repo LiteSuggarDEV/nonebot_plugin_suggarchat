@@ -57,7 +57,7 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
         )
 
         # 根据配置决定消息发送方式
-        if not config_manager.config.nature_chat_style:
+        if not config_manager.config.function.nature_chat_style:
             await matcher.send(message)
         else:
             await send_split_messages(response, event.user_id)
@@ -75,7 +75,7 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
 
         # 处理戳一戳事件并获取回复
         response = await process_poke_event(event, send_messages)
-        if not config_manager.config.nature_chat_style:
+        if not config_manager.config.function.nature_chat_style:
             await matcher.send(MessageSegment.text(response))
         else:
             await send_split_messages(response, event.user_id)
@@ -148,7 +148,10 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
         )
 
     # 主逻辑入口
-    if not config_manager.config.enable or not config_manager.config.poke_reply:
+    if (
+        not config_manager.config.enable
+        or not config_manager.config.function.poke_reply
+    ):
         matcher.skip()  # 如果功能未启用或未配置戳一戳回复，跳过处理
         return
 

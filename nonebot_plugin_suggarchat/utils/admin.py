@@ -17,10 +17,10 @@ async def send_to_admin_as_error(msg: str, bot: Bot | None = None) -> None:
 async def send_to_admin(msg: str, bot: Bot | None = None) -> None:
     """发送消息给管理员"""
     # 检查是否允许发送消息给管理员
-    if not config_manager.config.allow_send_to_admin:
+    if not config_manager.config.admin.allow_send_to_admin:
         return
     # 检查管理员群号是否已配置
-    if config_manager.config.admin_group == 0:
+    if config_manager.config.admin.admin_group == 0:
         try:
             raise RuntimeWarning("管理员群组未设定！")
         except Exception:
@@ -32,9 +32,9 @@ async def send_to_admin(msg: str, bot: Bot | None = None) -> None:
     # 发送消息到管理员群
     if bot:
         await bot.send_group_msg(
-            group_id=config_manager.config.admin_group, message=msg
+            group_id=config_manager.config.admin.admin_group, message=msg
         )
     else:
         await (nonebot.get_bot()).send_group_msg(
-            group_id=config_manager.config.admin_group, message=msg
+            group_id=config_manager.config.admin.admin_group, message=msg
         )

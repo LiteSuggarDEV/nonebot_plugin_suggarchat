@@ -38,7 +38,7 @@ ChatException: TypeAlias = (
 @prehook.handle()
 async def love_handler(event: BeforeChatEvent) -> None:
     config = config_manager.config
-    if not config.tools.enable_tools:
+    if not config.llm_config.tools.enable_tools:
         return
     nonebot_event = event.get_nonebot_event()
     if not isinstance(nonebot_event, MessageEvent):
@@ -51,7 +51,7 @@ async def love_handler(event: BeforeChatEvent) -> None:
 
         try:
             tools: list[dict[str, Any]] = []
-            if config.tools.enable_report:
+            if config.llm_config.tools.enable_report:
                 tools.append(REPORT_TOOL.model_dump(exclude_none=True))
             tools.extend(ToolsManager().tools_meta_dict(exclude_none=True).values())
             response_msg = await tools_caller(

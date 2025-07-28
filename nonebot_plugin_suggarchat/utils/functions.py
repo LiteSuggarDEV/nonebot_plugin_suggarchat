@@ -203,7 +203,7 @@ async def synthesize_message(message: Message, bot: Bot) -> str:
             content += f"\\（at: @{segment.data.get('name')}(QQ:{segment.data['qq']}))"
         elif (
             segment.type == "forward"
-            and config_manager.config.synthesize_forward_message
+            and config_manager.config.function.synthesize_forward_message
         ):
             forward = await bot.get_forward_msg(id=segment.data["id"])
             if chat_manager.debug:

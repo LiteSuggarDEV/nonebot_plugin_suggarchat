@@ -93,7 +93,7 @@ async def sessions(
             await matcher.finish("清空当前会话失败。")
 
     # 检查是否启用了会话管理功能
-    if not config_manager.config.session_control:
+    if not config_manager.config.session.session_control:
         matcher.skip()
 
     # 获取当前用户的会话数据

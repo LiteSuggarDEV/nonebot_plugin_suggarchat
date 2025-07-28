@@ -44,6 +44,17 @@ def replace_env_vars(data: dict | list | str) -> dict | list | str:
     return data_copy
 
 
+class ExtraModelPreset(BaseModel, extra="allow"):
+    def __getattr__(self, item) -> str:
+        if item in self.__dict__:
+            return self.__dict__[item]
+        if self.__pydantic_extra__ and item in self.__pydantic_extra__:
+            return self.__pydantic_extra__[item]
+        raise AttributeError(
+            f"'{self.__class__.__name__}' object has no attribute '{item}'"
+        )
+
+
 class ModelPreset(BaseModel, extra="allow"):
     model: str = ""
     name: str = "default"
@@ -52,6 +63,7 @@ class ModelPreset(BaseModel, extra="allow"):
     protocol: str = "__main__"
     thought_chain_model: bool = False
     multimodal: bool = False
+    extra: ExtraModelPreset = ExtraModelPreset()
 
     @classmethod
     def load(cls, path: Path):
@@ -87,6 +99,29 @@ class ToolsConfig(BaseModel):
     enable_tools: bool = True
     enable_report: bool = True
     require_tools: bool = False
+
+
+class SessionConfig(BaseModel):
+    session_control: bool = False
+    session_control_time: int = 60
+    session_control_history: int = 10
+    session_max_tokens: int = 5000
+
+
+class AutoReplyConfig(BaseModel):
+    enable: bool = False
+    global_enable: bool = False
+    probability: float = 1e-2
+    keyword: str = "at"
+
+
+class FunctionConfig(BaseModel):
+    synthesize_forward_message: bool = True
+    nature_chat_style: bool = True
+    poke_reply: bool = True
+    enable_group_chat: bool = True
+    enable_private_chat: bool = True
+    allow_custom_prompt: bool = True
 
 
 class PresetSwitch(BaseModel):
@@ -147,50 +182,21 @@ class CookieModel(BaseModel):
     ]
 
 
-class Config(BaseModel, extra="allow"):
-    preset: str = "default"
-    preset_extension: PresetSwitch = PresetSwitch()
-    tools: ToolsConfig = ToolsConfig()
-    model: str = ""
-    base_url: str = ""
-    api_key: str = ""
-    protocol: str = "__main__"
-    thought_chain_model: bool = False
-    multimodal: bool = False
-    memory_lenth_limit: int = 50
-    enable: bool = False
-    fake_people: bool = False
-    global_fake_people: bool = False
-    synthesize_forward_message: bool = True
-    probability: float = 1e-2
-    keyword: str = "at"
-    nature_chat_style: bool = True
-    poke_reply: bool = True
-    enable_group_chat: bool = True
-    enable_private_chat: bool = True
-    allow_custom_prompt: bool = True
-    allow_send_to_admin: bool = False
-    use_base_prompt: bool = True
-    admin_group: int = 0
-    admins: list[int] = []
-    stream: bool = False
-    max_tokens: int = 100
-    tokens_count_mode: Literal["word", "bpe", "char"] = "bpe"
-    session_max_tokens: int = 5000
-    enable_tokens_limit: bool = True
-    llm_timeout: int = 60
+class ExtraConfig(BaseModel, extra="allow"):
+    def __getattr__(self, item) -> str:
+        if item in self.__dict__:
+            return self.__dict__[item]
+        if self.__pydantic_extra__ and item in self.__pydantic_extra__:
+            return self.__pydantic_extra__[item]
+        raise AttributeError(
+            f"'{self.__class__.__name__}' object has no attribute '{item}'"
+        )
+
+
+class ExtendConfig(BaseModel):
     say_after_self_msg_be_deleted: bool = False
     group_added_msg: str = "你好，我是Suggar，欢迎使用SuggarAI聊天机器人..."
     send_msg_after_be_invited: bool = False
-    parse_segments: bool = True
-    matcher_function: bool = True
-    session_control: bool = False
-    session_control_time: int = 60
-    session_control_history: int = 10
-    cookies: CookieModel = CookieModel()
-    encoding_settings: Encoding = Encoding()
-    group_prompt_character: str = "default"
-    private_prompt_character: str = "default"
     after_deleted_say_what: list[str] = [
         "Suggar说错什么话了吗～下次我会注意的呢～",
         "抱歉啦，不小心说错啦～",
@@ -206,6 +212,43 @@ class Config(BaseModel, extra="allow"):
         "哎呀，我也有尴尬的时候呢~",
         "希望我能继续为你提供帮助，不要太在意我的小错误哦！",
     ]
+
+
+class AdminConfig(BaseModel):
+    allow_send_to_admin: bool = False
+    admin_group: int = 0
+    admins: list[int] = []
+
+
+class LLM_Config(BaseModel):
+    tools: ToolsConfig = ToolsConfig()
+    stream: bool = False
+    memory_lenth_limit: int = 50
+    use_base_prompt: bool = True
+    max_tokens: int = 100
+    tokens_count_mode: Literal["word", "bpe", "char"] = "bpe"
+    enable_tokens_limit: bool = True
+    llm_timeout: int = 60
+
+
+class Config(BaseModel):
+    preset_extension: PresetSwitch = PresetSwitch()
+    default_preset: ModelPreset = ModelPreset()
+    session: SessionConfig = SessionConfig()
+    cookies: CookieModel = CookieModel()
+    encoding_settings: Encoding = Encoding()
+    autoreply: AutoReplyConfig = AutoReplyConfig()
+    function: FunctionConfig = FunctionConfig()
+    extended: ExtendConfig = ExtendConfig()
+    admin: AdminConfig = AdminConfig()
+    llm_config: LLM_Config = LLM_Config()
+    extra: ExtraConfig = ExtraConfig()
+    enable: bool = False
+    parse_segments: bool = True
+    matcher_function: bool = True
+    preset: str = "default"
+    group_prompt_character: str = "default"
+    private_prompt_character: str = "default"
 
     @classmethod
     def load_from_toml(cls, path: Path) -> "Config":
@@ -223,16 +266,16 @@ class Config(BaseModel, extra="allow"):
 
     def validate_value(self):
         """校验配置"""
-        if self.max_tokens <= 0:
+        if self.llm_config.max_tokens <= 0:
             raise ValueError("max_tokens必须大于零!")
-        if self.llm_timeout <= 0:
+        if self.llm_config.llm_timeout <= 0:
             raise ValueError("LLM请求超时时间必须大于零！")
-        if self.session_max_tokens <= 0:
+        if self.session.session_max_tokens <= 0:
             raise ValueError("上下文最大Tokens限制必须大于零！")
-        if self.session_control:
-            if self.session_control_history <= 0:
+        if self.session.session_control:
+            if self.session.session_control_history <= 0:
                 raise ValueError("会话历史最大值不能为0！")
-            if self.session_control_time <= 0:
+            if self.session.session_control_time <= 0:
                 raise ValueError("会话生命周期时间不能小于零！")
 
     @classmethod
@@ -241,22 +284,13 @@ class Config(BaseModel, extra="allow"):
         with path.open(
             "r",
         ) as f:
-            data: dict = json.load(f)
+            data: dict[str, Any] = json.load(f)
         return cls(**data)
 
     def save_to_toml(self, path: Path):
         """保存配置到 TOML 文件"""
         with path.open("wb") as f:
             tomli_w.dump(self.model_dump(), f)
-
-    def __getattr__(self, item) -> str:
-        if item in self.__dict__:
-            return self.__dict__[item]
-        if self.__pydantic_extra__ and item in self.__pydantic_extra__:
-            return self.__pydantic_extra__[item]
-        raise AttributeError(
-            f"'{self.__class__.__name__}' object has no attribute '{item}'"
-        )
 
 
 @dataclass
@@ -293,16 +327,13 @@ class ConfigManager:
     data_dir: Path = DATA_DIR
     group_memory: Path = data_dir / "group"
     private_memory: Path = data_dir / "private"
-    json_config: Path = config_dir / "config.json"  # 兼容旧版本
     toml_config: Path = config_dir / "config.toml"
-    group_prompt: Path = config_dir / "prompt_group.txt"  # 兼容旧版本
-    private_prompt: Path = config_dir / "prompt_private.txt"  # 兼容旧版本
+
     private_prompts: Path = config_dir / "private_prompts"
     group_prompts: Path = config_dir / "group_prompts"
     custom_models_dir: Path = config_dir / "models"
     _private_train: dict = field(default_factory=dict)
     _group_train: dict = field(default_factory=dict)
-    # config: Config = field(default_factory=Config)
     ins_config: Config = field(default_factory=Config)
     models: list[tuple[ModelPreset, str]] = field(default_factory=list)
     prompts: Prompts = field(default_factory=Prompts)
@@ -328,41 +359,7 @@ class ConfigManager:
         os.makedirs(self.group_prompts, exist_ok=True)
         os.makedirs(self.custom_models_dir, exist_ok=True)
 
-        prompt_private_temp: str = ""
-        prompt_group_temp: str = ""
-
-        # 处理配置文件转换
-        if self.json_config.exists():
-            async with open(
-                str(self.json_config),
-            ) as f:
-                data: dict = json.loads(await f.read())
-
-            # 判断是否有抛弃的字段需要转移
-            if "private_train" in data:
-                prompt_old = data["private_train"]["content"]
-                if not (self.private_prompts / "default.txt").is_file():
-                    async with open(
-                        str(self.private_prompts / "default.txt"),
-                        "w",
-                    ) as f:
-                        await f.write(prompt_old)
-                del data["private_train"]
-            if "group_train" in data:
-                prompt_old = data["group_train"]["content"]
-                if not (self.group_prompts / "default.txt").is_file():
-                    async with open(
-                        str(self.group_prompts / "default.txt"),
-                        "w",
-                    ) as f:
-                        await f.write(prompt_old)
-                del data["group_train"]
-
-            Config(**data).save_to_toml(self.toml_config)
-            os.rename(self.json_config, self.json_config.with_suffix(".old"))
-            self.ins_config = Config.load_from_toml(self.toml_config)
-
-        elif self.toml_config.exists():
+        if self.toml_config.exists():
             self.ins_config = Config.load_from_toml(self.toml_config)
 
         else:
@@ -383,34 +380,6 @@ class ConfigManager:
 
         self.ins_config = config_fix(self.ins_config)
         self.ins_config.save_to_toml(self.toml_config)
-
-        # private_train
-        if self.private_prompt.is_file():
-            async with open(
-                self.private_prompt,
-            ) as f:
-                prompt_private_temp = await f.read()
-            os.rename(self.private_prompt, self.private_prompt.with_suffix(".old"))
-        if not (self.private_prompts / "default.txt").is_file():
-            async with open(
-                str(self.private_prompts / "default.txt"),
-                "w",
-            ) as f:
-                await f.write(prompt_private_temp)
-
-        # group_train
-        if self.group_prompt.is_file():
-            async with open(
-                str(self.group_prompt),
-            ) as f:
-                prompt_group_temp = await f.read()
-            os.rename(self.group_prompt, self.group_prompt.with_suffix(".old"))
-        if not (self.group_prompts / "default.txt").is_file():
-            async with open(
-                str(self.group_prompts / "default.txt"),
-                "w",
-            ) as f:
-                await f.write(prompt_group_temp)
 
         await self.get_models(cache=False)
         await self.get_prompts(cache=False)
@@ -446,12 +415,7 @@ class ConfigManager:
             ModelPreset: _模型预设对象_
         """
         if preset == "default":
-            p_dict = self.config.model_dump()
-            for k, v in self.ins_config.model_dump().items():
-                if k in p_dict:
-                    p_dict[k] = v
-
-            return ModelPreset(**p_dict)
+            return config_manager.config.default_preset
         for model in await self.get_models():
             if model.name == preset:
                 return model
@@ -547,8 +511,8 @@ class ConfigManager:
         """
         if default_value is None:
             default_value = "null"
-        if not hasattr(self.ins_config, key):
-            setattr(self.ins_config, key, default_value)
+        if not hasattr(self.ins_config.extra, key):
+            setattr(self.ins_config.extra, key, default_value)
         await self.save_config()
 
     def reg_config(self, key: str, default_value=None):
@@ -569,10 +533,10 @@ class ConfigManager:
         """
         if default_value is None:
             default_value = "null"
-        for model in self.models:
-            if not hasattr(model[0], key):
-                setattr(model[0], key, default_value)
-            model[0].save(self.custom_models_dir / f"{model[1]}.json")
+        for model, name in self.models:
+            if not hasattr(model.extra, key):
+                setattr(model.extra, key, default_value)
+            model.save(self.custom_models_dir / f"{name}.json")
 
 
 config_manager = ConfigManager()

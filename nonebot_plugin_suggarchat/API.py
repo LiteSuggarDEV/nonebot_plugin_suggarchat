@@ -143,7 +143,7 @@ class Admin:
         返回:
         - bool: 用户是否是管理员。
         """
-        return user_id in self.config.admins
+        return int(user_id) in self.config.admin.admins
 
     def add_admin(self, user_id: int) -> "Admin":
         """
@@ -155,7 +155,7 @@ class Admin:
         返回:
         - Admin: 返回Admin实例，支持链式调用。
         """
-        self.config.admins.append(user_id)
+        self.config.admin.admins.append(user_id)
         return self._save_config_to_toml()
 
     def set_admin_group(self, group_id: int) -> "Admin":
@@ -168,7 +168,7 @@ class Admin:
         返回:
         - Admin: 返回Admin实例，支持链式调用。
         """
-        self.config.admin_group = group_id
+        self.config.admin.admin_group = group_id
         return self._save_config_to_toml()
 
     def _save_config_to_toml(self):

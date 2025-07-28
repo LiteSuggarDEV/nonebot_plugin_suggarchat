@@ -34,7 +34,7 @@ async def is_group_admin(event: GroupMessageEvent, bot: Bot) -> bool:
             if not event.sender.role
             else event.sender.role
         )
-        if role != "member" or event.user_id in config_manager.config.admins:
+        if role != "member" or event.user_id in config_manager.config.admin.admins:
             is_admin = True
     except Exception:
         logger.warning(f"获取群成员信息失败: {event.group_id} {event.user_id}")
@@ -42,7 +42,7 @@ async def is_group_admin(event: GroupMessageEvent, bot: Bot) -> bool:
 
 
 async def is_bot_admin(event: MessageEvent, bot: Bot) -> bool:
-    return event.user_id in config_manager.config.admins + [
+    return event.user_id in config_manager.config.admin.admins + [
         int(user) for user in nb_config.superusers
     ]
 
@@ -64,22 +64,24 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
         return True
 
     # 判断是否以关键字触发回复
-    if config_manager.config.keyword == "at":  # 如果配置为 at 开头
+    if config_manager.config.autoreply.keyword == "at":  # 如果配置为 at 开头
         if event.is_tome():  # 判断是否 @ 了机器人
             return True
-    elif message_text.startswith(config_manager.config.keyword):  # 如果消息以关键字开头
+    elif message_text.startswith(
+        config_manager.config.autoreply.keyword
+    ):  # 如果消息以关键字开头
         return True
 
-    # 判断是否启用了伪装人模式
-    if config_manager.config.fake_people:
+    # 判断是否启用了AutoReply模式
+    if config_manager.config.autoreply.enable:
         # 根据概率决定是否回复
         rand = random.random()
-        rate = config_manager.config.probability
+        rate = config_manager.config.autoreply.probability
 
         # 获取内存数据
         memory_data = await get_memory_data(event)
         if rand <= rate and (
-            config_manager.config.global_fake_people or memory_data.fake_people
+            config_manager.config.autoreply.global_enable or memory_data.fake_people
         ):
             memory_data.timestamp = time.time()
             await write_memory_data(event, memory_data)

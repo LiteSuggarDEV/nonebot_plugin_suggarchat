@@ -64,7 +64,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         - 控制记忆长度和 token 限制。
         - 调用聊天模型生成回复并发送。
         """
-        if not config_manager.config.enable_group_chat:
+        if not config_manager.config.function.enable_group_chat:
             matcher.skip()
 
         if not group_data.enable:
@@ -175,7 +175,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         - 控制记忆长度和 token 限制。
         - 调用聊天模型生成回复并发送。
         """
-        if not config_manager.config.enable_private_chat:
+        if not config_manager.config.function.enable_private_chat:
             matcher.skip()
 
         # 管理会话上下文
@@ -256,7 +256,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         - 控制会话超时和历史记录。
         - 提供“继续”功能以恢复上下文。
         """
-        if config_manager.config.session_control:
+        if config_manager.config.session.session_control:
             try:
                 for session in session_clear_list:
                     if session["id"] == (
@@ -271,7 +271,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
 
                 # 检查会话超时
                 if (time.time() - data.timestamp) >= (
-                    float(config_manager.config.session_control_time * 60)
+                    float(config_manager.config.session.session_control_time * 60)
                 ):
                     data.sessions.append(
                         {
@@ -281,7 +281,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                     )
                     while (
                         len(data.sessions)
-                        > config_manager.config.session_control_history
+                        > config_manager.config.session.session_control_history
                     ):
                         data.sessions.remove(data.sessions[0])
                     data.memory.messages = []
@@ -289,10 +289,12 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                     await write_memory_data(event, data)
                     if not (
                         (time.time() - data.timestamp)
-                        > float(config_manager.config.session_control_time * 60 * 2)
+                        > float(
+                            config_manager.config.session.session_control_time * 60 * 2
+                        )
                     ):
                         chated = await matcher.send(
-                            f'如果想和我继续用之前的上下文聊天，快回复我✨"继续"✨吧！\n（超过{config_manager.config.session_control_time}分钟没理我我就会被系统抱走存档哦！）'
+                            f'如果想和我继续用之前的上下文聊天，快回复我✨"继续"✨吧！\n（超过{config_manager.config.session.session_control_time}分钟没理我我就会被系统抱走存档哦！）'
                         )
                         session_clear_list.append(
                             {
@@ -409,17 +411,17 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                         temp_string += s["text"]
                 full_string += temp_string
         tokens = hybrid_token_count(
-            full_string, config_manager.config.tokens_count_mode
+            full_string, config_manager.config.llm_config.tokens_count_mode
         )
-        if not config_manager.config.enable_tokens_limit:
+        if not config_manager.config.llm_config.enable_tokens_limit:
             return tokens
-        while tokens > config_manager.config.session_max_tokens:
+        while tokens > config_manager.config.session.session_max_tokens:
             try:
                 if len(data.memory.messages) > 0:
                     del data.memory.messages[0]
                 else:
                     logger.warning(
-                        f"提示词大小过大！为{hybrid_token_count(train['content'])}>{config_manager.config.session_max_tokens}！"
+                        f"提示词大小过大！为{hybrid_token_count(train['content'])}>{config_manager.config.session.session_max_tokens}！"
                     )
                     break
             except Exception:
@@ -451,7 +453,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                     )
                 )
             tokens = hybrid_token_count(
-                full_string, config_manager.config.tokens_count_mode
+                full_string, config_manager.config.llm_config.tokens_count_mode
             )
         return tokens
 
@@ -460,7 +462,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         准备发送给聊天模型的消息列表，包括系统提示词数据和上下文。
         """
         train = copy.deepcopy(train)
-        if config_manager.config.use_base_prompt:
+        if config_manager.config.llm_config.use_base_prompt:
             train["content"] = (
                 "你在纯文本环境工作，不允许使用MarkDown回复，我会提供聊天记录，你可以从这里面获取一些关键信息，比如时间与用户身份（e.g.: [管理员/群主/自己/群员][YYYY-MM-DD weekday hh:mm:ss AM/PM][昵称（QQ号）]说:<内容>），但是请不要以这个格式回复。对于消息上报我给你的有几个类型，除了文本还有,\\（戳一戳消息）\\：就是QQ的戳一戳消息是戳一戳了你，而不是我，请参与讨论。交流时不同话题尽量不使用相似句式回复，用户与你交谈的信息在<内容>。\n"
                 + train["content"]
@@ -509,7 +511,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         """
         发送聊天模型的回复，根据配置选择不同的发送方式。
         """
-        if not config_manager.config.nature_chat_style:
+        if not config_manager.config.function.nature_chat_style:
             await matcher.send(
                 MessageSegment.reply(event.message_id) + MessageSegment.text(response)
             )
@@ -539,7 +541,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
 
     # 函数进入运行点
 
-    memory_length_limit = config_manager.config.memory_lenth_limit
+    memory_length_limit = config_manager.config.llm_config.memory_lenth_limit
     Date = get_current_datetime_timestamp()
 
     if event.message.extract_plain_text().strip().startswith("/"):

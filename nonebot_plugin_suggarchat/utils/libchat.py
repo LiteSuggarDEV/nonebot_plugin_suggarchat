@@ -30,7 +30,7 @@ async def tools_caller(
         tool_choice = (
             "required"
             if (
-                config_manager.config.tools.require_tools and len(tools) > 1
+                config_manager.config.llm_config.tools.require_tools and len(tools) > 1
             )  # 排除默认工具
             else "auto"
         )
@@ -55,7 +55,7 @@ async def tools_caller(
             logger.debug(f"协议：{preset.protocol}")
             logger.debug(f"API地址：{preset.base_url}")
             client = openai.AsyncOpenAI(
-                base_url=base_url, api_key=key, timeout=config.llm_timeout
+                base_url=base_url, api_key=key, timeout=config.llm_config.llm_timeout
             )
             completion: ChatCompletion = await client.chat.completions.create(
                 model=model,
@@ -88,7 +88,7 @@ async def get_chat(
         assert isinstance(nb_bot, Bot)
     else:
         nb_bot = bot
-    max_tokens = config_manager.config.max_tokens
+    max_tokens = config_manager.config.llm_config.max_tokens
     presets = [
         config_manager.config.preset,
         *config_manager.config.preset_extension.backup_preset_list,
@@ -150,7 +150,7 @@ async def openai_get_chat(
     """核心聊天响应获取函数"""
     # 创建OpenAI客户端
     client = openai.AsyncOpenAI(
-        base_url=base_url, api_key=key, timeout=config.llm_timeout
+        base_url=base_url, api_key=key, timeout=config.llm_config.llm_timeout
     )
     completion: ChatCompletion | openai.AsyncStream[ChatCompletionChunk] | None = None
     # 尝试获取聊天响应，最多重试3次
@@ -160,7 +160,7 @@ async def openai_get_chat(
                 model=model,
                 messages=messages,
                 max_tokens=max_tokens,
-                stream=config.stream,
+                stream=config.llm_config.stream,
             )
             break
         except Exception as e:
@@ -175,7 +175,7 @@ async def openai_get_chat(
 
     response: str = ""
     # 处理流式响应
-    if config.stream and isinstance(completion, openai.AsyncStream):
+    if config.llm_config.stream and isinstance(completion, openai.AsyncStream):
         async for chunk in completion:
             try:
                 if chunk.choices[0].delta.content is not None:
