@@ -80,7 +80,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             (await bot.get_group_member_info(group_id=group_id, user_id=user_id))[
                 "nickname"
             ]
-            if not event.sender.nickname
+            if not config_manager.config.function.use_user_nickname
             else event.sender.nickname
         )
         content = await synthesize_message(event.get_message(), bot)

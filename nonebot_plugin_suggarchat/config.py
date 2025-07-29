@@ -14,7 +14,7 @@ from aiofiles import open
 from nonebot import get_driver, logger
 from pydantic import BaseModel
 
-__KERNEL_VERSION__ = "unknow"
+__kernel_version__ = "unknow"
 
 # 保留为其他插件提供的引用
 
@@ -113,6 +113,7 @@ class FunctionConfig(BaseModel):
     enable_group_chat: bool = True
     enable_private_chat: bool = True
     allow_custom_prompt: bool = True
+    use_user_nickname: bool = False  # 使用用户昵称而不是群内昵称（仅群内）
 
 
 class PresetSwitch(BaseModel):

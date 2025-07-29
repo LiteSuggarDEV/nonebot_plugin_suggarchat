@@ -115,7 +115,7 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
             (await bot.get_group_member_info(group_id=event.group_id, user_id=user_id))[
                 "nickname"
             ]
-            if not event.sender.nickname
+            if not config_manager.config.function.use_user_nickname
             else event.sender.nickname
         )
 

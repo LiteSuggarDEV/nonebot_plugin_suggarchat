@@ -36,7 +36,7 @@ ChatException: TypeAlias = (
 
 
 @prehook.handle()
-async def love_handler(event: BeforeChatEvent) -> None:
+async def tools_callerdler(event: BeforeChatEvent) -> None:
     config = config_manager.config
     if not config.llm_config.tools.enable_tools:
         return
