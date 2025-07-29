@@ -19,6 +19,7 @@ dependencies = [
     "dotenv>=0.9.9",
     "aiofiles>=24.1.0",
     "importlib>=1.0.4",
+
 ]
 requires-python = ">=3.10, <4.0"
 readme = "README.md"
@@ -30,7 +31,8 @@ keywords = ['chat", "suggar", "nonebot']
 "Source" = "https://github.com/LiteSuggarDEV/nonebot_plugin_suggarchat"
 "Issue Tracker" = "https://github.com/LiteSuggarDEV/nonebot_plugin_suggarchat/issues"
 
-
+[tool.uv]
+dev-dependencies = ["nonebot-plugin-suggarex-cf>=1.1.4.post3"]
 [tool.ruff]
 line-length = 88
 target-version = "py310"
@@ -61,8 +63,10 @@ ignore = [
 ]
 
 [tool.pyright]
-typeCheckingMode ="standard"
+typeCheckingMode = "standard"
 
 [tool.nonebot]
-plugins=["nonebot_plugin_suggarchat"]
-adapters = [{name = "OneBot V11", module_name = "nonebot.adapters.onebot.v11"}]
+plugins = ["nonebot_plugin_suggarchat"]
+adapters = [
+    { name = "OneBot V11", module_name = "nonebot.adapters.onebot.v11" },
+]

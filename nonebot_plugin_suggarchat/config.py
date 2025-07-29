@@ -55,7 +55,7 @@ class ExtraModelPreset(BaseModel, extra="allow"):
         )
 
 
-class ModelPreset(BaseModel, extra="allow"):
+class ModelPreset(BaseModel):
     model: str = ""
     name: str = "default"
     base_url: str = ""
@@ -80,15 +80,6 @@ class ModelPreset(BaseModel, extra="allow"):
             "w",
         ) as f:
             json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)
-
-    def __getattr__(self, item) -> str:
-        if item in self.__dict__:
-            return self.__dict__[item]
-        if self.__pydantic_extra__ and item in self.__pydantic_extra__:
-            return self.__pydantic_extra__[item]
-        raise AttributeError(
-            f"'{self.__class__.__name__}' object has no attribute '{item}'"
-        )
 
 
 class Encoding(BaseModel):
@@ -513,6 +504,7 @@ class ConfigManager:
             default_value = "null"
         if not hasattr(self.ins_config.extra, key):
             setattr(self.ins_config.extra, key, default_value)
+            logger.warning(self.ins_config.extra.model_dump_json())
         await self.save_config()
 
     def reg_config(self, key: str, default_value=None):
@@ -533,6 +525,9 @@ class ConfigManager:
         """
         if default_value is None:
             default_value = "null"
+        if not hasattr(self.ins_config.default_preset.extra, key):
+            setattr(self.ins_config.default_preset.extra, key, default_value)
+            self.ins_config.save_to_toml(self.toml_config)
         for model, name in self.models:
             if not hasattr(model.extra, key):
                 setattr(model.extra, key, default_value)

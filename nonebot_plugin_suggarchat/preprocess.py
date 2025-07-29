@@ -8,6 +8,9 @@ from .hook_manager import run_hooks
 
 driver = get_driver()
 
+@driver.on_bot_connect
+async def hook():
+    await run_hooks()
 
 @driver.on_startup
 async def onEnable():
@@ -18,6 +21,7 @@ async def onEnable():
     except Exception:
         logger.error("无法获取到版本!")
     logger.info(f"Loading SuggarChat V {kernel_version}")
+    logger.info("加载配置文件...")
     await config_manager.load()
-    await run_hooks()
+    logger.info("运行钩子...")
     logger.info("成功启动！")
