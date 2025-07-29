@@ -89,6 +89,7 @@ class Encoding(BaseModel):
 class ToolsConfig(BaseModel):
     enable_tools: bool = True
     enable_report: bool = True
+    report_then_block: bool = True
     require_tools: bool = False
 
 

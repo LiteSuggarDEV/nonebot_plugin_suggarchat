@@ -76,6 +76,16 @@ async def tools_callerdler(event: BeforeChatEvent) -> None:
                                 function_args.get("content", ""),
                                 bot,
                             )
+                            if config_manager.config.llm_config.tools.report_then_block:
+                                data = await get_memory_data(nonebot_event)
+                                data.memory.messages = []
+                                await write_memory_data(nonebot_event, data)
+                                await bot.send(
+                                    nonebot_event,
+                                    random.choice(
+                                        config_manager.config.cookies.block_msg
+                                    ),
+                                )
                         case _:
                             if (
                                 func := ToolsManager().get_tool_func(function_name)
