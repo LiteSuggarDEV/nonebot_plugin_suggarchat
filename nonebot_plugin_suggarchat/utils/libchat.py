@@ -17,7 +17,6 @@ from openai.types.chat.chat_completion_tool_choice_option_param import (
 
 from ..chatmanager import chat_manager
 from ..config import Config, config_manager
-from .admin import send_to_admin_as_error
 from .functions import remove_think_tag
 
 
@@ -164,12 +163,10 @@ async def openai_get_chat(
             )
             break
         except Exception as e:
-            logger.error(f"发生错误: {e}")
+            logger.warning(f"发生错误: {e}")
             logger.info(f"第 {i + 1} 次重试")
             if index == 2:
-                await send_to_admin_as_error(
-                    f"请检查API Key和API base_url！获取对话时发生错误: {e}", bot
-                )
+                logger.warning(f"请检查API Key和API base_url！获取对话时发生错误: {e}")
                 raise e
             continue
 

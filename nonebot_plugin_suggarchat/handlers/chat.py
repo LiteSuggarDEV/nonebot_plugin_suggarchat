@@ -465,14 +465,16 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         if config_manager.config.llm_config.use_base_prompt:
             train["content"] = (
                 "你在纯文本环境工作，不允许使用MarkDown回复，我会提供聊天记录，你可以从这里面获取一些关键信息，比如时间与用户身份（e.g.: [管理员/群主/自己/群员][YYYY-MM-DD weekday hh:mm:ss AM/PM][昵称（QQ号）]说:<内容>），但是请不要以这个格式回复。对于消息上报我给你的有几个类型，除了文本还有,\\（戳一戳消息）\\：就是QQ的戳一戳消息是戳一戳了你，而不是我，请参与讨论。交流时不同话题尽量不使用相似句式回复，用户与你交谈的信息在<内容>。\n"
-                + train["content"].replace(
-                    "{cookie}", config_manager.config.cookies.cookie
+                + (
+                    train["content"]
+                    .replace("{cookie}", config_manager.config.cookies.cookie)
+                    .replace("{self_id}", str(event.self_id))
                 )
             )
         train["content"] += (
             f"\n以下是一些补充内容，如果与上面任何一条有冲突请忽略。\n{data.prompt if data.prompt != '' else '无'}"
         )
-        send_messages = data.memory.messages.copy()
+        send_messages = copy.deepcopy(data.memory.messages)
         send_messages.insert(0, train)
         return send_messages
 
