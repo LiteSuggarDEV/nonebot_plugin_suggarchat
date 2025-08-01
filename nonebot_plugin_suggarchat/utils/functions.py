@@ -1,3 +1,4 @@
+import json
 import re
 from datetime import datetime
 from typing import Any
@@ -148,7 +149,7 @@ def convert_to_utf8(file_path) -> bool:
     return True
 
 
-async def synthesize_forward_message(forward_msg, bot: Bot) -> str:
+async def synthesize_forward_message(forward_msg: dict, bot: Bot) -> str:
     """合成消息数组内容为字符串
     这是一个示例的消息集合/数组：
     [
@@ -175,8 +176,13 @@ async def synthesize_forward_message(forward_msg, bot: Bot) -> str:
     """
     result = ""
     for segment in forward_msg:
-        nickname = segment["data"]["nickname"]
-        qq = segment["data"]["user_id"]
+        if isinstance(segment["data"], str):
+            try:
+                segment["data"] = json.loads(segment["data"])
+            except Exception:
+                result += segment["data"] + "<!--该消息段无法被解析-->"
+        nickname: str = segment["data"]["nickname"]
+        qq: str = segment["data"]["user_id"]
         result += f"[{nickname}({qq})]说："
         if isinstance(segment["data"]["content"], str):
             result += f"{segment['data']['content']}"

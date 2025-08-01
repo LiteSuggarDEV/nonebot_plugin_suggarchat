@@ -86,6 +86,7 @@ async def tools_callerdler(event: BeforeChatEvent) -> None:
                                         config_manager.config.cookies.block_msg
                                     ),
                                 )
+                                prehook.cancel_nonebot_process()
                         case _:
                             if (
                                 func := ToolsManager().get_tool_func(function_name)
@@ -105,6 +106,8 @@ async def tools_callerdler(event: BeforeChatEvent) -> None:
                     }
                     msg_list.append(msg)
         except Exception as e:
+            if isinstance(e, ChatException):
+                raise
             logger.opt(colors=True, exception=e).exception(
                 f"ERROR\n{e!s}\n!调用Tools失败！已旧数据继续处理..."
             )
