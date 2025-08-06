@@ -5,8 +5,7 @@ import typing_extensions
 from nonebot import logger
 
 from .chatmanager import chat_manager
-from .config import Config as Conf
-from .config import ConfigManager, config_manager
+from .config import Config, ConfigManager, config_manager
 from .utils.admin import send_to_admin
 from .utils.libchat import (
     ModelAdapter,
@@ -160,7 +159,7 @@ class Admin:
     管理员管理类，负责处理与管理员相关的操作，如发送消息、错误处理和管理员权限管理。
     """
 
-    config: Conf
+    config: Config
 
     def __init__(self):
         """
@@ -244,7 +243,7 @@ class Chat:
     Chat 类用于处理与LLM相关操作，如获取消息。
     """
 
-    config: Conf
+    config: Config
 
     def __init__(self):
         """

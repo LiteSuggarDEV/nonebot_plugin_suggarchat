@@ -2,7 +2,7 @@ from nonebot import get_driver
 from nonebot.plugin import require
 
 require("nonebot_plugin_suggarchat")
-from nonebot_plugin_suggarchat.API import Config
+from nonebot_plugin_suggarchat.API import config_manager as Config
 
 
 @get_driver().on_startup
