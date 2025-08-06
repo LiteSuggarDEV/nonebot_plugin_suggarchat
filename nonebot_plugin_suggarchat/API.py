@@ -128,6 +128,7 @@ class Adapter:
         """
         return adapter_class
 
+
 class Menu:
     """
     Menu 类用于通过注册菜单项来构建菜单。

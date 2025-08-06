@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable, Coroutine
 from copy import deepcopy
-from dataclasses import dataclass
 from typing import Any
 
 import nonebot
@@ -205,6 +204,7 @@ async def openai_get_chat(
         else:
             raise RuntimeError("收到意外的响应类型")
     return response if response is not None else ""
+
 
 class ModelAdapter(ABC):
     """模型适配器抽象类"""

@@ -46,6 +46,7 @@ _Group_Lock = defaultdict(asyncio.Lock)
 _Private_Lock = defaultdict(asyncio.Lock)
 command_prefix = get_driver().config.command_start or "/"
 
+
 async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
     """
     聊天处理主函数，根据消息类型（群聊或私聊）调用对应的处理逻辑。
