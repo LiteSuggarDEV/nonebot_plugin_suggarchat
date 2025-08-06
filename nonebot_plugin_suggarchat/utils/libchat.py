@@ -206,9 +206,11 @@ async def openai_get_chat(
             raise RuntimeError("收到意外的响应类型")
     return response if response is not None else ""
 
-@dataclass(frozen=True)
 class ModelAdapter(ABC):
     """模型适配器抽象类"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__()
 
     preset: ModelPreset
     config: Config
