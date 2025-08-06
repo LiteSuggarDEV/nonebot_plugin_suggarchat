@@ -219,8 +219,8 @@ class ModelAdapter(ABC):
     async def call_api(self, messages: list[dict[str, Any]]) -> str:
         raise NotImplementedError
 
-    @abstractmethod
     @staticmethod
+    @abstractmethod
     def get_adapter_protocol() -> str:
         raise NotImplementedError
 
