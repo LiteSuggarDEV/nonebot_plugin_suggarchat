@@ -64,6 +64,7 @@ class Adapter:
             raise ValueError(
                 f"这个适配器类已经注册了：{adapter.get_adapter_protocol()}"
             )
+        adapter_class[adapter.get_adapter_protocol()] = adapter
 
     @typing_extensions.deprecated(
         "请使用 get_adapter_class() 方法获取适配器。", category=None
