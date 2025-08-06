@@ -1,12 +1,20 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
+
+from pydantic import BaseModel, Field
+
+
+class SessionTemp(BaseModel):
+    message_id: int
+    timestamp: datetime = Field(default_factory=datetime.now)
 
 
 @dataclass
 class ChatManager:
     debug: bool = False
-    session_clear_group: list[dict[str, Any]] = field(default_factory=list)
-    session_clear_user: list[dict[str, Any]] = field(default_factory=list)
+    session_clear_group: dict[str, SessionTemp] = field(default_factory=dict)
+    session_clear_user: dict[str, SessionTemp] = field(default_factory=dict)
     custom_menu: list[dict[str, str]] = field(default_factory=list)
     running_messages_poke: dict[str, Any] = field(default_factory=dict)
     menu_msg: str = "聊天功能菜单:\n" + "/聊天菜单 唤出菜单 \n"

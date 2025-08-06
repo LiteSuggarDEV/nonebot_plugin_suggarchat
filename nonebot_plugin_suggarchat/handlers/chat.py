@@ -5,10 +5,11 @@ import random
 import sys
 import time
 import traceback
+from collections import defaultdict
 from datetime import datetime
 from typing import Any
 
-from nonebot import logger
+from nonebot import get_driver, logger
 from nonebot.adapters.onebot.v11 import (
     Bot,
     MessageSegment,
@@ -22,14 +23,13 @@ from nonebot.adapters.onebot.v11.event import (
 from nonebot.exception import NoneBotException
 from nonebot.matcher import Matcher
 
-from ..chatmanager import chat_manager
+from ..chatmanager import SessionTemp, chat_manager
 from ..config import config_manager
 from ..event import BeforeChatEvent, ChatEvent
 from ..exception import CancelException
 from ..matcher import MatcherManager
 from ..utils.admin import (
     send_to_admin,
-    send_to_admin_as_error,
 )
 from ..utils.functions import (
     get_current_datetime_timestamp,
@@ -42,6 +42,9 @@ from ..utils.libchat import get_chat
 from ..utils.memory import MemoryModel, get_memory_data, write_memory_data
 from ..utils.tokenizer import hybrid_token_count
 
+_Group_Lock = defaultdict(asyncio.Lock)
+_Private_Lock = defaultdict(asyncio.Lock)
+command_prefix = get_driver().config.command_start or "/"
 
 async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
     """
@@ -249,7 +252,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
     async def manage_sessions(
         event: GroupMessageEvent | PrivateMessageEvent,
         data: MemoryModel,
-        session_clear_list: list,
+        session_clear_map: dict[str, SessionTemp],
     ):
         """
         管理会话上下文：
@@ -257,17 +260,16 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         - 提供“继续”功能以恢复上下文。
         """
         if config_manager.config.session.session_control:
+            session_id = str(
+                event.group_id
+                if isinstance(event, GroupMessageEvent)
+                else event.user_id
+            )
             try:
-                for session in session_clear_list:
-                    if session["id"] == (
-                        event.group_id
-                        if isinstance(event, GroupMessageEvent)
-                        else event.user_id
-                    ):
-                        if not event.reply:
-                            session_clear_list.remove(session)
-                            return
-                        break
+                if session := session_clear_map.get(session_id):
+                    if "继续" not in event.message.extract_plain_text():
+                        del session_clear_map[session_id]
+                        return
 
                 # 检查会话超时
                 if (time.time() - data.timestamp) >= (
@@ -285,7 +287,6 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                     ):
                         data.sessions.remove(data.sessions[0])
                     data.memory.messages = []
-                    data.timestamp = time.time()
                     await write_memory_data(event, data)
                     if not (
                         (time.time() - data.timestamp)
@@ -294,42 +295,28 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                         )
                     ):
                         chated = await matcher.send(
-                            f'如果想和我继续用之前的上下文聊天，快回复我✨"继续"✨吧！\n（超过{config_manager.config.session.session_control_time}分钟没理我我就会被系统抱走存档哦！）'
+                            f'如果想和我继续用之前的上下文聊天，快at我回复✨"继续"✨吧！\n（超过{config_manager.config.session.session_control_time}分钟没理我我就会被系统抱走存档哦！）'
                         )
-                        session_clear_list.append(
-                            {
-                                "id": (
-                                    event.group_id
-                                    if isinstance(event, GroupMessageEvent)
-                                    else event.user_id
-                                ),
-                                "message_id": chated["message_id"],
-                                "timestamp": time.time(),
-                            }
+                        session_clear_map[session_id] = SessionTemp(
+                            message_id=chated["message_id"], timestamp=datetime.now()
                         )
+
                         raise CancelException()
                 else:
-                    for session in session_clear_list:
-                        if (
-                            session["id"]
-                            == (
-                                event.group_id
-                                if isinstance(event, GroupMessageEvent)
-                                else event.user_id
-                            )
-                            and "继续" in event.message.extract_plain_text()
-                        ):
-                            with contextlib.suppress(Exception):
-                                if time.time() - session["timestamp"] < 100:
-                                    await bot.delete_msg(
-                                        message_id=session["message_id"]
-                                    )
-                            session_clear_list.remove(session)
-                            data.memory.messages = data.sessions[-1]["messages"]
-                            data.sessions.pop()
-                            await matcher.send("让我们继续聊天吧～")
-                            await write_memory_data(event, data)
-                            raise CancelException()
+                    if (
+                        session := session_clear_map.get(session_id)
+                    ) and "继续" in event.message.extract_plain_text():
+                        with contextlib.suppress(Exception):
+                            if time.time() - session.timestamp.timestamp() < 100:
+                                await bot.delete_msg(message_id=session.message_id)
+
+                        del session_clear_map[session_id]
+
+                        data.memory.messages = data.sessions[-1]["messages"]
+                        data.sessions.pop()
+                        await matcher.send("让我们继续聊天吧～")
+                        await write_memory_data(event, data)
+                        raise CancelException()
 
             finally:
                 data.timestamp = time.time()
@@ -424,22 +411,10 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                         f"提示词大小过大！为{hybrid_token_count(train['content'])}>{config_manager.config.session.session_max_tokens}！"
                     )
                     break
-            except Exception:
-                await send_to_admin_as_error("上下文限制清理出现异常！")
+            except Exception as e:
+                await send_to_admin(f"上下文限制清理出现异常！{e!s}")
+                logger.opt(exception=e, colors=True).exception(str(e))
 
-                exc_type, exc_value, exc_traceback = sys.exc_info()
-
-                await send_to_admin_as_error(
-                    f"Exception type: {exc_type.__name__}"
-                    if exc_type
-                    else "Exception type: None"
-                )
-                await send_to_admin_as_error(f"Exception message: {exc_value!s}")
-                import traceback
-
-                await send_to_admin_as_error(
-                    f"Detailed exception info:\n{''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))}"
-                )
                 break
             full_string = ""
             for st in memory_l:
@@ -548,23 +523,28 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
     memory_length_limit = config_manager.config.llm_config.memory_lenth_limit
     Date = get_current_datetime_timestamp()
 
-    if event.message.extract_plain_text().strip().startswith("/"):
+    if any(
+        event.message.extract_plain_text().strip().startswith(prefix)
+        for prefix in command_prefix
+    ):
         matcher.skip()
 
-    if event.message.extract_plain_text().startswith("菜单"):
+    if event.message.extract_plain_text().startswith("聊天菜单"):
         await matcher.finish(chat_manager.menu_msg)
 
     try:
         if isinstance(event, GroupMessageEvent):
-            group_data = await get_memory_data(event)
-            await handle_group_message(
-                event, matcher, bot, group_data, memory_length_limit, Date
-            )  # type: ignore
+            async with _Group_Lock[event.group_id]:
+                group_data = await get_memory_data(event)
+                await handle_group_message(
+                    event, matcher, bot, group_data, memory_length_limit, Date
+                )  # type: ignore
         elif isinstance(event, PrivateMessageEvent):
-            private_data = await get_memory_data(event)
-            await handle_private_message(
-                event, matcher, bot, private_data, memory_length_limit, Date
-            )
+            async with _Private_Lock[event.user_id]:
+                private_data = await get_memory_data(event)
+                await handle_private_message(
+                    event, matcher, bot, private_data, memory_length_limit, Date
+                )
         else:
             matcher.skip()
     except NoneBotException as e:

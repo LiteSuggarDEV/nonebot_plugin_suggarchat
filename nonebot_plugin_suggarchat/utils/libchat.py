@@ -1,5 +1,7 @@
-from collections.abc import Callable, Coroutine
+from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable, Coroutine
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import Any
 
 import nonebot
@@ -16,7 +18,7 @@ from openai.types.chat.chat_completion_tool_choice_option_param import (
 )
 
 from ..chatmanager import chat_manager
-from ..config import Config, config_manager
+from ..config import Config, ModelPreset, config_manager
 from .functions import remove_think_tag
 
 
@@ -95,17 +97,21 @@ async def get_chat(
     err: Exception | None = None
     for pname in presets:
         preset = await config_manager.get_preset(pname, cache=False)
-        func = openai_get_chat
         # 根据预设选择API密钥和基础URL
         is_thought_chain_model = preset.thought_chain_model
-
+        func: (
+            Callable[[str, str, str, list, int, Config, Bot], Awaitable[str]] | None
+        ) = None
+        adapter: None | type[ModelAdapter] = None
         # 检查协议适配器
         if preset.protocol == "__main__":
             func = openai_get_chat
-        elif preset.protocol not in protocols_adapters:
-            raise ValueError(f"协议 {preset.protocol} 的适配器未找到!")
-        else:
+        elif preset.protocol in protocols_adapters:
             func = protocols_adapters[preset.protocol]
+        elif preset.protocol in adapter_class:
+            adapter = adapter_class[preset.protocol]
+        else:
+            raise ValueError(f"未定义的协议适配器：{preset.protocol}")
         # 记录日志
         logger.debug(f"开始获取 {preset.model} 的对话")
         logger.debug(f"预设：{config_manager.config.preset}")
@@ -116,15 +122,21 @@ async def get_chat(
 
         # 调用适配器获取聊天响应
         try:
-            response = await func(
-                preset.base_url,
-                preset.model,
-                preset.api_key,
-                messages,
-                max_tokens,
-                config_manager.config,
-                nb_bot,
-            )
+            if adapter is not None:
+                processer = adapter(preset, config_manager.config)
+                response = await processer.call_api(messages)
+            else:
+                assert func is not None, "适配器未找到"
+                response = await func(
+                    preset.base_url,
+                    preset.model,
+                    preset.api_key,
+                    messages,
+                    max_tokens,
+                    config_manager.config,
+                    nb_bot,
+                )
+
         except Exception as e:
             logger.warning(f"调用适配器失败{e}")
             err = e
@@ -194,8 +206,25 @@ async def openai_get_chat(
             raise RuntimeError("收到意外的响应类型")
     return response if response is not None else ""
 
+@dataclass(frozen=True)
+class ModelAdapter(ABC):
+    """模型适配器抽象类"""
+
+    preset: ModelPreset
+    config: Config
+
+    @abstractmethod
+    async def call_api(self, messages: list[dict[str, Any]]) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    @staticmethod
+    def get_adapter_protocol() -> str:
+        raise NotImplementedError
+
 
 # 协议适配器映射
 protocols_adapters: dict[
     str, Callable[[str, str, str, list, int, Config, Bot], Coroutine[Any, Any, str]]
 ] = {"openai": openai_get_chat}
+adapter_class: dict[str, type[ModelAdapter]] = {}

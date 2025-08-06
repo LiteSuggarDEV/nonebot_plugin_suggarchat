@@ -132,11 +132,7 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
     async def handle_poke_exception():
         """处理戳一戳事件中的异常"""
         exc_type, exc_value, exc_traceback = sys.exc_info()
-        logger.error(
-            f"Exception type: {exc_type.__name__}"
-            if exc_type
-            else "Exception type: None"
-        )
+        logger.exception("发生了异常")
         logger.error(f"Exception message: {exc_value!s}")
 
         # 将异常信息发送给管理员

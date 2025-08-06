@@ -1,5 +1,4 @@
 import inspect
-import sys
 from collections.abc import Awaitable, Callable
 from copy import deepcopy
 from types import FrameType
@@ -213,21 +212,11 @@ class MatcherManager:
                     break
                 except NoneBotException:
                     raise
-                except Exception:
+                except Exception as e:
                     logger.error(
                         f"运行时发生了错误 '{handler.__name__}'({file_name}:{line_number}) "
                     )
-                    exc_type, exc_value, exc_traceback = sys.exc_info()
-                    logger.error(
-                        f"Exception type: {exc_type.__name__}"
-                        if exc_type
-                        else "Exception type: None"
-                    )
-                    logger.error(f"Exception message: {exc_value!s}")
-                    import traceback
-
-                    back = "".join(traceback.format_tb(exc_traceback))
-                    logger.error(back)
+                    logger.opt(exception=e, colors=True).exception(str(e))
                     continue
                 finally:
                     logger.info(f"处理器 {handler.__name__} 已结束")
