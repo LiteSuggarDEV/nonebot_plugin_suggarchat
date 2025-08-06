@@ -43,7 +43,7 @@ class Adapter:
             ValueError: 这个协议的适配器已经注册了。
         """
         warnings.warn(
-            "请使用Adapter.register_adapter()注册适配器，请使用新的Adpater规范",
+            "请使用Adapter.register_adapter()注册适配器，请使用新的Adapter规范",
             DeprecationWarning,
         )
         if protocol in protocols_adapters and not config_manager.config_dir:
