@@ -154,6 +154,7 @@ class ModelAdapter:
 
     preset: ModelPreset
     config: Config
+    __override__: bool = False  # 是否允许覆盖现有适配器
 
     def __init_subclass__(cls) -> None:
         """注册适配器类"""
@@ -253,17 +254,23 @@ class AdapterManager:
     def register_adapter(self, adapter: type[ModelAdapter]):
         """注册适配器"""
         protocol = adapter.protocol
+        override = adapter.__override__ if hasattr(adapter, "__override__") else False
         if isinstance(protocol, str):
             if protocol in self._adapter_class:
+                if not override:
+                    raise ValueError(f"适配器协议 {protocol} 已经被注册")
                 logger.warning(
                     f"适配器协议 {protocol} 已经被{self._adapter_class[protocol].__name__}注册，覆盖原有适配器"
                 )
+
             self._adapter_class[protocol] = adapter
         elif isinstance(protocol, tuple):
             for p in protocol:
                 if not isinstance(p, str):
                     raise TypeError("适配器协议必须是字符串或字符串元组")
                 if p in self._adapter_class:
+                    if not override:
+                        raise ValueError(f"适配器协议 {p} 已经被注册")
                     logger.warning(
                         f"适配器协议 {p} 已经被{self._adapter_class[p].__name__}注册，覆盖原有适配器"
                     )
