@@ -24,6 +24,7 @@ DATA_DIR: Path = store.get_plugin_data_dir()
 driver = get_driver()
 nb_config = driver.config
 
+
 def replace_env_vars(
     data: dict[str, Any] | list[Any] | str | Any,
 ) -> dict[str, Any] | list[Any] | str | Any:
