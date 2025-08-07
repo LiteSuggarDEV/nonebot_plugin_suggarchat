@@ -21,12 +21,12 @@ __kernel_version__ = "unknow"
 # 配置目录
 CONFIG_DIR: Path = store.get_plugin_config_dir()
 DATA_DIR: Path = store.get_plugin_data_dir()
-nb_config = get_driver().config
-
+driver = get_driver()
+nb_config = driver.config
 
 def replace_env_vars(
-    data: dict[str, Any] | list[Any] | str,
-) -> dict[str, Any] | list[Any] | str:
+    data: dict[str, Any] | list[Any] | str | Any,
+) -> dict[str, Any] | list[Any] | str | Any:
     """递归替换环境变量占位符，但不修改原始数据"""
     data_copy = copy.deepcopy(data)  # 创建原始数据的深拷贝[4,5](@ref)
     if isinstance(data_copy, dict):
@@ -35,14 +35,21 @@ def replace_env_vars(
     elif isinstance(data_copy, list):
         for i in range(len(data_copy)):
             data_copy[i] = replace_env_vars(data_copy[i])
-    else:
-        pattern = r"\$\{(\w+)\}"
+    elif isinstance(data_copy, str):
+        patterns = (
+            r"\$\{(\w+)\}",
+            r"\{\{(\w+)\}\}",
+        )  # 支持两种格式的占位符，分别为 ${} 和 {{}}
 
         def replacer(match: re.Match[str]) -> str:
             var_name = match.group(1)
             return os.getenv(var_name, "")  # 若未设置环境变量，返回空字符串
 
-        data_copy = re.sub(pattern, replacer, data_copy)
+        for pattern in patterns:
+            if re.search(pattern, data_copy):
+                # 如果匹配到占位符，则进行替换
+                data_copy = re.sub(pattern, replacer, data_copy)
+                break  # 替换后跳出循环，避免重复替换
     return data_copy
 
 
