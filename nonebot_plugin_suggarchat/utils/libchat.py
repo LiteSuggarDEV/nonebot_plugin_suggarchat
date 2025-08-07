@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import abstractmethod
 from collections.abc import Iterable
 from copy import deepcopy
@@ -156,6 +158,10 @@ class ModelAdapter:
     config: Config
     __override__: bool = False  # 是否允许覆盖现有适配器
 
+    def __init_subclass__(cls) -> None:
+        super().__init_subclass__()
+        AdapterManager().register_adapter(cls)
+
     @abstractmethod
     async def call_api(self, messages: Iterable[Any]) -> str:
         raise NotImplementedError
@@ -197,7 +203,7 @@ class AdapterManager:
 
     def register_adapter(self, adapter: type[ModelAdapter]):
         """注册适配器"""
-        protocol = adapter.protocol
+        protocol = adapter.get_adapter_protocol()
         override = adapter.__override__ if hasattr(adapter, "__override__") else False
         if isinstance(protocol, str):
             if protocol in self._adapter_class:
@@ -221,15 +227,7 @@ class AdapterManager:
                 self._adapter_class[p] = adapter
 
 
-class BaseAdapter(ModelAdapter):
-    """基础适配器类，所有适配器都应继承自此类"""
-
-    def __init_subclass__(cls) -> None:
-        super().__init_subclass__()
-        AdapterManager().register_adapter(cls)
-
-
-class OpenAIAdapter(BaseAdapter):
+class OpenAIAdapter(ModelAdapter):
     """OpenAI协议适配器"""
 
     async def call_api(self, messages: Iterable[ChatCompletionMessageParam]) -> str:

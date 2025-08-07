@@ -7,11 +7,10 @@ from .config import config_manager
 from .hook_manager import run_hooks
 
 driver = get_driver()
-__LOGO = r"""
- __  _ _  __   __   _   ___
-/ _|| | |/ _| / _| / \ | o \
-\_ \| U ( |_n( |_n| o ||   /
-|__/|___|\__/ \__/|_n_||_|\\"""
+__LOGO = """
+▄▖▖▖▄▖▄▖▄▖▄▖
+▚ ▌▌▌ ▌ ▌▌▙▘
+▄▌▙▌▙▌▙▌▛▌▌▌"""
 
 @driver.on_bot_connect
 async def hook():
