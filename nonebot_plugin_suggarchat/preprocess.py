@@ -12,7 +12,6 @@ __LOGO = """
 ▚ ▌▌▌ ▌ ▌▌▙▘
 ▄▌▙▌▙▌▙▌▛▌▌▌"""
 
-
 @driver.on_bot_connect
 async def hook():
     logger.debug("运行钩子...")

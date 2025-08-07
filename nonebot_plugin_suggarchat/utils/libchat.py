@@ -147,7 +147,6 @@ async def get_chat(
         raise err
     return ""
 
-
 class OpenAIAdapter(ModelAdapter):
     """OpenAI协议适配器"""
 
