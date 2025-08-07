@@ -222,6 +222,8 @@ class LLM_Config(BaseModel):
     tokens_count_mode: Literal["word", "bpe", "char"] = "bpe"
     enable_tokens_limit: bool = True
     llm_timeout: int = 60
+    auto_retry: bool = True
+    max_retries: int = 3
 
 
 class Config(BaseModel):

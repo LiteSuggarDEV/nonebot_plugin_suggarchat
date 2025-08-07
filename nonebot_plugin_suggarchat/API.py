@@ -1,132 +1,28 @@
-import warnings
-from collections.abc import Callable
-
-import typing_extensions
 from nonebot import logger
+from openai.types.chat.chat_completion_tool_choice_option_param import (
+    ChatCompletionToolChoiceOptionParam,
+)
 
 from .chatmanager import chat_manager
 from .config import Config, ConfigManager, config_manager
 from .utils.admin import send_to_admin
 from .utils.libchat import (
+    AdapterManager,
     ModelAdapter,
-    adapter_class,
     get_chat,
-    protocols_adapters,
     tools_caller,
 )
 from .utils.tokenizer import Tokenizer, hybrid_token_count
 
 __all__ = [
+    "AdapterManager",
     "ConfigManager",
+    "ModelAdapter",
     "Tokenizer",
     "config_manager",
     "hybrid_token_count",
     "tools_caller",
 ]
-
-
-class Adapter:
-    """用于处理Adapter注册的类"""
-
-    @typing_extensions.deprecated(
-        "请使用register_adapter_class方法",
-        category=None,
-    )
-    def register_adapter(self, func: Callable, protocol: str):
-        """注册一个适配器。
-
-        Args:
-            func (Callable): 适配器函数
-            protocol (str): 协议
-
-        Raises:
-            ValueError: 这个协议的适配器已经注册了。
-        """
-        warnings.warn(
-            "请使用Adapter.register_adapter()注册适配器，请使用新的Adapter规范",
-            DeprecationWarning,
-        )
-        if protocol in protocols_adapters and not config_manager.config_dir:
-            raise ValueError("协议适配器已存在")
-        else:
-            protocols_adapters[protocol] = func
-
-    def register_adapter_class(self, adapter: type[ModelAdapter]) -> None:
-        """注册一个适配器类。
-
-        Args:
-            adapter (type[ModelAdapter]): 适配器类
-
-        Raises:
-            ValueError: 这个适配器类已经注册了。
-        """
-        if adapter.get_adapter_protocol() in adapter_class:
-            raise ValueError(
-                f"这个适配器类已经注册了：{adapter.get_adapter_protocol()}"
-            )
-        adapter_class[adapter.get_adapter_protocol()] = adapter
-
-    @typing_extensions.deprecated(
-        "请使用 get_adapter_class() 方法获取适配器。", category=None
-    )
-    def get_adapter(self, protocol: str) -> Callable:
-        """获取适配器方法。
-
-        Args:
-            protocol (str): 协议
-
-        Raises:
-            ValueError: 不存在
-
-        Returns:
-            Callable: 返回的函数
-        """
-        warnings.warn(
-            "请使用 get_adapter_protocol() 方法获取协议适配器", DeprecationWarning
-        )
-        if protocol not in protocols_adapters:
-            raise ValueError("协议适配器不存在")
-        return protocols_adapters[protocol]
-
-    def get_adapter_class(self, protocol: str) -> type[ModelAdapter]:
-        if protocol not in adapter_class:
-            raise ValueError("协议适配器不存在")
-        return adapter_class[protocol]
-
-    def get_adapter_classes(self) -> dict[str, type[ModelAdapter]]:
-        return adapter_class
-
-    @typing_extensions.deprecated(
-        "请使用 get_adapters_classes() 方法获取适配器。", category=None
-    )
-    def get_adapters(self) -> dict[str, Callable]:
-        """获取适配器方法
-
-        Returns:
-            dict[str,Callable]: 包含适配器与协议的字典
-        """
-        warnings.warn("请使用get_adapters()方法", DeprecationWarning)
-        return protocols_adapters
-
-    @property
-    @typing_extensions.deprecated("请使用 adapter_classes 获取适配器。", category=None)
-    def adapters(self) -> dict[str, Callable]:
-        """获取适配器方法
-
-        Returns:
-            dict[str,Callable]: 包含适配器与协议的字典
-        """
-        warnings.warn("请使用adapter_classes属性", DeprecationWarning)
-        return protocols_adapters
-
-    @property
-    def adapter_classes(self) -> dict[str, type[ModelAdapter]]:
-        """获取适配器类方法
-
-        Returns:
-            dict[str,Type[ModelAdapter]]: 适配器类字典
-        """
-        return adapter_class
 
 
 class Menu:
@@ -272,3 +168,20 @@ class Chat:
         """
 
         return await get_chat(messages=message)
+
+    async def call_tools(
+        self,
+        messages: list,
+        tools: list,
+        tool_choice: ChatCompletionToolChoiceOptionParam | None = None,
+    ):
+        """
+        调用工具
+
+        :param messages: 消息列表
+        :param tools: 工具列表
+        :param tool_choice: 工具选择参数
+        """
+        return await tools_caller(
+            messages=messages, tools=tools, tool_choice=tool_choice
+        )

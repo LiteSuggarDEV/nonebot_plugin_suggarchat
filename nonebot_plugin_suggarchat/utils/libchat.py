@@ -1,6 +1,7 @@
-from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Callable, Coroutine
+from abc import abstractmethod
+from collections.abc import Iterable
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import Any
 
 import nonebot
@@ -12,6 +13,7 @@ from nonebot.adapters.onebot.v11 import (
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
+from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from openai.types.chat.chat_completion_tool_choice_option_param import (
     ChatCompletionToolChoiceOptionParam,
 )
@@ -88,7 +90,6 @@ async def get_chat(
         assert isinstance(nb_bot, Bot)
     else:
         nb_bot = bot
-    max_tokens = config_manager.config.llm_config.max_tokens
     presets = [
         config_manager.config.preset,
         *config_manager.config.preset_extension.backup_preset_list,
@@ -98,17 +99,9 @@ async def get_chat(
         preset = await config_manager.get_preset(pname, cache=False)
         # 根据预设选择API密钥和基础URL
         is_thought_chain_model = preset.thought_chain_model
-        func: (
-            Callable[[str, str, str, list, int, Config, Bot], Awaitable[str]] | None
-        ) = None
-        adapter: None | type[ModelAdapter] = None
-        # 检查协议适配器
-        if preset.protocol == "__main__":
-            func = openai_get_chat
-        elif preset.protocol in protocols_adapters:
-            func = protocols_adapters[preset.protocol]
-        elif preset.protocol in adapter_class:
-            adapter = adapter_class[preset.protocol]
+        if adapter := AdapterManager().safe_get_adapter(preset.protocol):
+            # 如果适配器存在，使用它
+            logger.debug(f"使用适配器 {adapter.__name__} 处理协议 {preset.protocol}")
         else:
             raise ValueError(f"未定义的协议适配器：{preset.protocol}")
         # 记录日志
@@ -118,28 +111,35 @@ async def get_chat(
         logger.debug(f"协议：{preset.protocol}")
         logger.debug(f"API地址：{preset.base_url}")
         logger.debug(f"当前对话Tokens:{tokens}")
-
+        response = ""
         # 调用适配器获取聊天响应
         try:
-            if adapter is not None:
-                processer = adapter(preset, config_manager.config)
-                response = await processer.call_api(messages)
-            else:
-                assert func is not None, "适配器未找到"
-                response = await func(
-                    preset.base_url,
-                    preset.model,
-                    preset.api_key,
-                    messages,
-                    max_tokens,
-                    config_manager.config,
-                    nb_bot,
-                )
-
+            for index in range(1, config_manager.config.llm_config.max_retries + 1):
+                e = None
+                try:
+                    processer = adapter(preset, config_manager.config)
+                    response = await processer.call_api(messages)
+                    break  # 成功获取响应，跳出重试循环
+                except Exception as e:
+                    logger.warning(f"发生错误: {e}")
+                    if index == config_manager.config.llm_config.max_retries:
+                        logger.warning(
+                            f"请检查API Key和API base_url！获取对话时发生错误: {e}"
+                        )
+                        raise e
+                    logger.info(f"开始第 {index + 1} 次重试")
+                    continue
+                finally:
+                    if (
+                        e is not None
+                        and not config_manager.config.llm_config.auto_retry
+                    ):
+                        raise e
         except Exception as e:
             logger.warning(f"调用适配器失败{e}")
             err = e
             continue
+
         if chat_manager.debug:
             logger.debug(response)
         return remove_think_tag(response) if is_thought_chain_model else response
@@ -148,85 +148,123 @@ async def get_chat(
     return ""
 
 
-async def openai_get_chat(
-    base_url: str,
-    model: str,
-    key: str,
-    messages: list,
-    max_tokens: int,
-    config: Config,
-    bot: Bot,
-) -> str:
-    """核心聊天响应获取函数"""
-    # 创建OpenAI客户端
-    client = openai.AsyncOpenAI(
-        base_url=base_url, api_key=key, timeout=config.llm_config.llm_timeout
-    )
-    completion: ChatCompletion | openai.AsyncStream[ChatCompletionChunk] | None = None
-    # 尝试获取聊天响应，最多重试3次
-    for index, i in enumerate(range(3)):
-        try:
-            completion = await client.chat.completions.create(
-                model=model,
-                messages=messages,
-                max_tokens=max_tokens,
-                stream=config.llm_config.stream,
-            )
-            break
-        except Exception as e:
-            logger.warning(f"发生错误: {e}")
-            logger.info(f"第 {i + 1} 次重试")
-            if index == 2:
-                logger.warning(f"请检查API Key和API base_url！获取对话时发生错误: {e}")
-                raise e
-            continue
-
-    response: str = ""
-    # 处理流式响应
-    if config.llm_config.stream and isinstance(completion, openai.AsyncStream):
-        async for chunk in completion:
-            try:
-                if chunk.choices[0].delta.content is not None:
-                    response += chunk.choices[0].delta.content
-                    if chat_manager.debug:
-                        logger.debug(chunk.choices[0].delta.content)
-            except IndexError:
-                break
-    else:
-        if chat_manager.debug:
-            logger.debug(response)
-        if isinstance(completion, ChatCompletion):
-            response = (
-                completion.choices[0].message.content
-                if completion.choices[0].message.content is not None
-                else ""
-            )
-        else:
-            raise RuntimeError("收到意外的响应类型")
-    return response if response is not None else ""
-
-
-class ModelAdapter(ABC):
-    """模型适配器抽象类"""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__()
+@dataclass
+class ModelAdapter:
+    """模型适配器基类"""
 
     preset: ModelPreset
     config: Config
 
+    def __init_subclass__(cls) -> None:
+        """注册适配器类"""
+        super().__init_subclass__()
+        AdapterManager().register_adapter(cls)
+
     @abstractmethod
-    async def call_api(self, messages: list[dict[str, Any]]) -> str:
+    async def call_api(self, messages: Iterable[Any]) -> str:
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def get_adapter_protocol() -> str:
+    def get_adapter_protocol() -> str | tuple[str, ...]:
         raise NotImplementedError
 
+    @property
+    def protocol(self):
+        """获取适配器协议"""
+        return self.get_adapter_protocol()
 
-# 协议适配器映射
-protocols_adapters: dict[
-    str, Callable[[str, str, str, list, int, Config, Bot], Coroutine[Any, Any, str]]
-] = {"openai": openai_get_chat}
-adapter_class: dict[str, type[ModelAdapter]] = {}
+
+class OpenAIAdapter(ModelAdapter):
+    """OpenAI协议适配器"""
+
+    async def call_api(self, messages: Iterable[ChatCompletionMessageParam]) -> str:
+        """调用OpenAI API获取聊天响应"""
+        preset = self.preset
+        config = self.config
+        client = openai.AsyncOpenAI(
+            base_url=preset.base_url,
+            api_key=preset.api_key,
+            timeout=config.llm_config.llm_timeout,
+        )
+        completion: ChatCompletion | openai.AsyncStream[ChatCompletionChunk] | None = (
+            None
+        )
+
+        completion = await client.chat.completions.create(
+            model=preset.model,
+            messages=messages,
+            max_tokens=config.llm_config.max_tokens,
+            stream=config.llm_config.stream,
+        )
+        response: str = ""
+        # 处理流式响应
+        if config.llm_config.stream and isinstance(completion, openai.AsyncStream):
+            async for chunk in completion:
+                try:
+                    if chunk.choices[0].delta.content is not None:
+                        response += chunk.choices[0].delta.content
+                        if chat_manager.debug:
+                            logger.debug(chunk.choices[0].delta.content)
+                except IndexError:
+                    break
+        else:
+            if chat_manager.debug:
+                logger.debug(response)
+            if isinstance(completion, ChatCompletion):
+                response = (
+                    completion.choices[0].message.content
+                    if completion.choices[0].message.content is not None
+                    else ""
+                )
+            else:
+                raise RuntimeError("收到意外的响应类型")
+        return response if response is not None else ""
+
+    @staticmethod
+    def get_adapter_protocol() -> tuple[str, ...]:
+        return "openai", "__main__"
+
+
+class AdapterManager:
+    __instance = None
+    _adapter_class: dict[str, type[ModelAdapter]]
+
+    def __new__(cls):
+        if cls.__instance is None:
+            cls.__instance = super().__new__(cls)
+            cls.__instance._adapter_class = {}
+        return cls.__instance
+
+    def get_adapters(self) -> dict[str, type[ModelAdapter]]:
+        """获取所有注册的适配器"""
+        return self._adapter_class
+
+    def safe_get_adapter(self, protocol: str) -> type[ModelAdapter] | None:
+        """获取适配器"""
+        return self._adapter_class.get(protocol)
+
+    def get_adapter(self, protocol: str) -> type[ModelAdapter]:
+        """获取适配器"""
+        if protocol not in self._adapter_class:
+            raise ValueError(f"No adapter found for protocol {protocol}")
+        return self._adapter_class[protocol]
+
+    def register_adapter(self, adapter: type[ModelAdapter]):
+        """注册适配器"""
+        protocol = adapter.protocol
+        if isinstance(protocol, str):
+            if protocol in self._adapter_class:
+                logger.warning(
+                    f"适配器协议 {protocol} 已经被{self._adapter_class[protocol].__name__}注册，覆盖原有适配器"
+                )
+            self._adapter_class[protocol] = adapter
+        elif isinstance(protocol, tuple):
+            for p in protocol:
+                if not isinstance(p, str):
+                    raise TypeError("适配器协议必须是字符串或字符串元组")
+                if p in self._adapter_class:
+                    logger.warning(
+                        f"适配器协议 {p} 已经被{self._adapter_class[p].__name__}注册，覆盖原有适配器"
+                    )
+                self._adapter_class[p] = adapter
