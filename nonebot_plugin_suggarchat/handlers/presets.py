@@ -11,7 +11,7 @@ async def presets(event: MessageEvent, matcher: Matcher, bot: Bot):
     msg = f"模型预设:\n当前：主配置文件：{config_manager.config.preset}"
 
     # 遍历模型列表，添加每个预设的名称和模型信息
-    for i in await config_manager.get_models():
+    for i in await config_manager.get_all_presets():
         msg += f"\n预设名称：{i.name}，模型：{i.model}"
 
     # 发送消息并结束处理

@@ -21,7 +21,7 @@ async def set_preset(
     # 如果参数不为空
     if arg != "":
         # 遍历所有模型
-        for model in await config_manager.get_models():
+        for model in await config_manager.get_all_presets():
             if model.name == arg:
                 # 设置预设并保存
                 config_manager.ins_config.preset = model.name

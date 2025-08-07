@@ -43,7 +43,7 @@ async def tools_caller(
         preset_list = ["default"]
     for name in preset_list:
         try:
-            preset = await config_manager.get_preset(name, cache=False)
+            preset = await config_manager.get_preset(name)
 
             if preset.protocol not in ("__main__", "openai"):
                 continue
@@ -96,7 +96,7 @@ async def get_chat(
     ]
     err: Exception | None = None
     for pname in presets:
-        preset = await config_manager.get_preset(pname, cache=False)
+        preset = await config_manager.get_preset(pname)
         # 根据预设选择API密钥和基础URL
         is_thought_chain_model = preset.thought_chain_model
         if adapter := AdapterManager().safe_get_adapter(preset.protocol):

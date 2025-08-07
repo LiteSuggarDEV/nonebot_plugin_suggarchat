@@ -1,3 +1,4 @@
+import asyncio
 import copy
 import json
 import os
@@ -13,6 +14,7 @@ import tomli_w
 from aiofiles import open
 from nonebot import get_driver, logger
 from pydantic import BaseModel
+from watchfiles import awatch
 
 __kernel_version__ = "unknow"
 
@@ -330,6 +332,8 @@ class Prompts:
 class ConfigManager:
     config_dir: Path = CONFIG_DIR
     data_dir: Path = DATA_DIR
+    _initialized = False
+
     group_memory: Path = data_dir / "group"
     private_memory: Path = data_dir / "private"
     toml_config: Path = config_dir / "config.toml"
@@ -386,11 +390,40 @@ class ConfigManager:
         self.ins_config = config_fix(self.ins_config)
         self.ins_config.save_to_toml(self.toml_config)
 
-        await self.get_models(cache=False)
+        await self.get_all_presets(cache=False)
         await self.get_prompts(cache=False)
         await self.load_prompt()
 
-    async def get_models(self, cache: bool = False) -> list[ModelPreset]:
+    def init_watch(self):
+        if not self._initialized:
+            self._tasks = []
+            self._tasks.append(asyncio.create_task(self._watch_config()))
+            self._tasks.append(asyncio.create_task(self._watch_presets()))
+
+            self._initialized = True
+
+    async def _watch_presets(self):
+        async for changes in awatch(self.custom_models_dir):
+            if any(
+                path.startswith(str(self.custom_models_dir)) and path.endswith(".json")
+                for _, path in changes
+            ):
+                logger.info("检测到模型预设文件更改，正在重新加载模型预设...")
+                await self.get_all_presets(cache=False)
+                logger.info("完成。")
+
+    async def _watch_config(
+        self,
+    ):
+        async for changes in awatch(self.toml_config):
+            if any(path == str(self.toml_config) for _, path in changes):
+                logger.info("检测到配置文件变更，正在自动重载...")
+                try:
+                    await self.reload_config()
+                except Exception as e:
+                    logger.opt(exception=e, colors=True).warning("配置文件重载失败")
+
+    async def get_all_presets(self, cache: bool = False) -> list[ModelPreset]:
         """获取模型列表"""
         if cache and self.models:
             return [model[0] for model in self.models]
@@ -421,9 +454,12 @@ class ConfigManager:
         """
         if preset == "default":
             return config_manager.config.default_preset
-        for model in await self.get_models():
+        for model in await self.get_all_presets(cache=cache):
             if model.name == preset:
                 return model
+        if fix:
+            config_manager.ins_config.preset = "default"
+            await config_manager.save_config()
         return await self.get_preset("default", fix, cache)
 
     async def get_prompts(self, cache: bool = False) -> Prompts:
@@ -470,22 +506,39 @@ class ConfigManager:
                 self._group_train = {"role": "system", "content": prompt.text}
                 break
         else:
-            raise ValueError(
-                f"没有找到名称为 {self.ins_config.group_prompt_character} 的群组提示词"
+            self._group_train = {
+                "role": "system",
+                "content": next(
+                    i for i in self.prompts.group if i.name == "default"
+                ).text,
+            }
+            logger.warning(
+                f"没有找到名称为 {self.ins_config.group_prompt_character} 的群组提示词，将使用default.txt!"
             )
+
         for prompt in self.prompts.private:
             if prompt.name == self.ins_config.private_prompt_character:
                 self._private_train = {"role": "system", "content": prompt.text}
                 break
         else:
-            raise ValueError(
-                f"没有找到名称为 {self.ins_config.private_prompt_character} 的私聊提示词"
+            logger.warning(
+                f"没有找到名称为 {self.ins_config.private_prompt_character} 的私聊提示词，将使用default.txt！"
             )
+            self._private_train = {
+                "role": "system",
+                "content": next(
+                    i for i in self.prompts.group if i.name == "default"
+                ).text,
+            }
 
-    async def reload_config(self):
+    async def reload(self):
         """重加载配置"""
 
         await self.load()
+
+    async def reload_config(self):
+        self.ins_config = Config.load_from_toml(self.toml_config)
+        logger.info("重载配置文件")
 
     async def save_config(self):
         """保存配置"""
