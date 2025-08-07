@@ -71,7 +71,7 @@
 - 方法二（手动安装）：
 
   ```bash
-  pip install nonebot_plugin_suggarchat
+  pip install nonebot_plugin_suggarchat[openai]
   ```
 
   若使用方法二，还需在 `pyproject.toml` 中手动添加插件名：
