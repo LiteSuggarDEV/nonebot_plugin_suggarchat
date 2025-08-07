@@ -150,16 +150,11 @@ async def get_chat(
 
 @dataclass
 class ModelAdapter:
-    """模型适配器基类"""
+    """模型适配器基础类"""
 
     preset: ModelPreset
     config: Config
     __override__: bool = False  # 是否允许覆盖现有适配器
-
-    def __init_subclass__(cls) -> None:
-        """注册适配器类"""
-        super().__init_subclass__()
-        AdapterManager().register_adapter(cls)
 
     @abstractmethod
     async def call_api(self, messages: Iterable[Any]) -> str:
@@ -174,57 +169,6 @@ class ModelAdapter:
     def protocol(self):
         """获取适配器协议"""
         return self.get_adapter_protocol()
-
-
-class OpenAIAdapter(ModelAdapter):
-    """OpenAI协议适配器"""
-
-    async def call_api(self, messages: Iterable[ChatCompletionMessageParam]) -> str:
-        """调用OpenAI API获取聊天响应"""
-        preset = self.preset
-        config = self.config
-        client = openai.AsyncOpenAI(
-            base_url=preset.base_url,
-            api_key=preset.api_key,
-            timeout=config.llm_config.llm_timeout,
-        )
-        completion: ChatCompletion | openai.AsyncStream[ChatCompletionChunk] | None = (
-            None
-        )
-
-        completion = await client.chat.completions.create(
-            model=preset.model,
-            messages=messages,
-            max_tokens=config.llm_config.max_tokens,
-            stream=config.llm_config.stream,
-        )
-        response: str = ""
-        # 处理流式响应
-        if config.llm_config.stream and isinstance(completion, openai.AsyncStream):
-            async for chunk in completion:
-                try:
-                    if chunk.choices[0].delta.content is not None:
-                        response += chunk.choices[0].delta.content
-                        if chat_manager.debug:
-                            logger.debug(chunk.choices[0].delta.content)
-                except IndexError:
-                    break
-        else:
-            if chat_manager.debug:
-                logger.debug(response)
-            if isinstance(completion, ChatCompletion):
-                response = (
-                    completion.choices[0].message.content
-                    if completion.choices[0].message.content is not None
-                    else ""
-                )
-            else:
-                raise RuntimeError("收到意外的响应类型")
-        return response if response is not None else ""
-
-    @staticmethod
-    def get_adapter_protocol() -> tuple[str, ...]:
-        return "openai", "__main__"
 
 
 class AdapterManager:
@@ -275,3 +219,62 @@ class AdapterManager:
                         f"适配器协议 {p} 已经被{self._adapter_class[p].__name__}注册，覆盖原有适配器"
                     )
                 self._adapter_class[p] = adapter
+
+
+class BaseAdapter(ModelAdapter):
+    """基础适配器类，所有适配器都应继承自此类"""
+
+    def __init_subclass__(cls) -> None:
+        super().__init_subclass__()
+        AdapterManager().register_adapter(cls)
+
+
+class OpenAIAdapter(BaseAdapter):
+    """OpenAI协议适配器"""
+
+    async def call_api(self, messages: Iterable[ChatCompletionMessageParam]) -> str:
+        """调用OpenAI API获取聊天响应"""
+        preset = self.preset
+        config = self.config
+        client = openai.AsyncOpenAI(
+            base_url=preset.base_url,
+            api_key=preset.api_key,
+            timeout=config.llm_config.llm_timeout,
+        )
+        completion: ChatCompletion | openai.AsyncStream[ChatCompletionChunk] | None = (
+            None
+        )
+
+        completion = await client.chat.completions.create(
+            model=preset.model,
+            messages=messages,
+            max_tokens=config.llm_config.max_tokens,
+            stream=config.llm_config.stream,
+        )
+        response: str = ""
+        # 处理流式响应
+        if config.llm_config.stream and isinstance(completion, openai.AsyncStream):
+            async for chunk in completion:
+                try:
+                    if chunk.choices[0].delta.content is not None:
+                        response += chunk.choices[0].delta.content
+                        if chat_manager.debug:
+                            logger.debug(chunk.choices[0].delta.content)
+                except IndexError:
+                    break
+        else:
+            if chat_manager.debug:
+                logger.debug(response)
+            if isinstance(completion, ChatCompletion):
+                response = (
+                    completion.choices[0].message.content
+                    if completion.choices[0].message.content is not None
+                    else ""
+                )
+            else:
+                raise RuntimeError("收到意外的响应类型")
+        return response if response is not None else ""
+
+    @staticmethod
+    def get_adapter_protocol() -> tuple[str, ...]:
+        return "openai", "__main__"

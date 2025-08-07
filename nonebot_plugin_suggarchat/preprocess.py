@@ -13,9 +13,9 @@ __LOGO = r"""
 \_ \| U ( |_n( |_n| o ||   /
 |__/|___|\__/ \__/|_n_||_|\\"""
 
-
 @driver.on_bot_connect
 async def hook():
+    logger.debug("运行钩子...")
     await run_hooks()
 
 
@@ -31,5 +31,4 @@ async def onEnable():
         logger.warning("无法获取到版本！SuggarChat似乎并没有以pypi包方式运行。")
     logger.debug("加载配置文件...")
     await config_manager.load()
-    logger.debug("运行钩子...")
     logger.debug("成功启动！")

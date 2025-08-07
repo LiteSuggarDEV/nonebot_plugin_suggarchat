@@ -24,7 +24,9 @@ DATA_DIR: Path = store.get_plugin_data_dir()
 nb_config = get_driver().config
 
 
-def replace_env_vars(data: dict | list | str) -> dict | list | str:
+def replace_env_vars(
+    data: dict[str, Any] | list[Any] | str,
+) -> dict[str, Any] | list[Any] | str:
     """递归替换环境变量占位符，但不修改原始数据"""
     data_copy = copy.deepcopy(data)  # 创建原始数据的深拷贝[4,5](@ref)
     if isinstance(data_copy, dict):
@@ -33,10 +35,10 @@ def replace_env_vars(data: dict | list | str) -> dict | list | str:
     elif isinstance(data_copy, list):
         for i in range(len(data_copy)):
             data_copy[i] = replace_env_vars(data_copy[i])
-    elif isinstance(data_copy, str):
+    else:
         pattern = r"\$\{(\w+)\}"
 
-        def replacer(match):
+        def replacer(match: re.Match[str]) -> str:
             var_name = match.group(1)
             return os.getenv(var_name, "")  # 若未设置环境变量，返回空字符串
 
@@ -45,7 +47,7 @@ def replace_env_vars(data: dict | list | str) -> dict | list | str:
 
 
 class ExtraModelPreset(BaseModel, extra="allow"):
-    def __getattr__(self, item) -> str:
+    def __getattr__(self, item: str) -> str:
         if item in self.__dict__:
             return self.__dict__[item]
         if self.__pydantic_extra__ and item in self.__pydantic_extra__:
@@ -176,7 +178,7 @@ class CookieModel(BaseModel):
 
 
 class ExtraConfig(BaseModel, extra="allow"):
-    def __getattr__(self, item) -> str:
+    def __getattr__(self, item: str) -> str:
         if item in self.__dict__:
             return self.__dict__[item]
         if self.__pydantic_extra__ and item in self.__pydantic_extra__:
@@ -327,8 +329,8 @@ class ConfigManager:
     private_prompts: Path = config_dir / "private_prompts"
     group_prompts: Path = config_dir / "group_prompts"
     custom_models_dir: Path = config_dir / "models"
-    _private_train: dict = field(default_factory=dict)
-    _group_train: dict = field(default_factory=dict)
+    _private_train: dict[str, Any] = field(default_factory=dict)
+    _group_train: dict[str, Any] = field(default_factory=dict)
     ins_config: Config = field(default_factory=Config)
     models: list[tuple[ModelPreset, str]] = field(default_factory=list)
     prompts: Prompts = field(default_factory=Prompts)
