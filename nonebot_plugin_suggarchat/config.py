@@ -527,12 +527,12 @@ class ConfigManager:
             self._private_train = {
                 "role": "system",
                 "content": next(
-                    i for i in self.prompts.group if i.name == "default"
+                    i for i in self.prompts.private if i.name == "default"
                 ).text,
             }
 
     async def reload(self):
-        """重加载配置"""
+        """重加载所有内容"""
 
         await self.load()
 
