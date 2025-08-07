@@ -160,7 +160,8 @@ class ModelAdapter:
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
-        AdapterManager().register_adapter(cls)
+        if getattr(cls, "__abstract__", False):
+            AdapterManager().register_adapter(cls)
 
     @abstractmethod
     async def call_api(self, messages: Iterable[Any]) -> str:
