@@ -64,7 +64,13 @@ class AdapterManager:
 
     def register_adapter(self, adapter: type[ModelAdapter]):
         """注册适配器"""
-        protocol = adapter.get_adapter_protocol()
+        try:
+            protocol = adapter.get_adapter_protocol()
+        except NotImplementedError as e:
+            logger.error(
+                f"Adapter {adapter.__name__} does not implement get_adapter_protocol: {e}"
+            )
+            return
         override = adapter.__override__ if hasattr(adapter, "__override__") else False
         if isinstance(protocol, str):
             if protocol in self._adapter_class:
