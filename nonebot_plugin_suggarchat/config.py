@@ -399,7 +399,7 @@ class ConfigManager:
                 for _, path in changes
             ):
                 logger.info("检测到提示词文件更改，正在重新加载提示词...")
-                await self.get_prompts(cache=False)
+                await self.get_prompts(cache=False, load_only=True)
                 await self.load_prompt()
                 logger.info("完成。")
             elif any(
@@ -462,7 +462,9 @@ class ConfigManager:
             await config_manager.save_config()
         return await self.get_preset("default", fix, cache)
 
-    async def get_prompts(self, cache: bool = False) -> Prompts:
+    async def get_prompts(
+        self, cache: bool = False, load_only: bool = False
+    ) -> Prompts:
         """获取提示词"""
         if cache and self.prompts:
             return self.prompts
@@ -484,8 +486,9 @@ class ConfigManager:
         if not self.prompts.group:
             self.prompts.group.append(Prompt("", "default"))
 
-        self.prompts.save_private(self.private_prompts)
-        self.prompts.save_group(self.group_prompts)
+        if not load_only:
+            self.prompts.save_private(self.private_prompts)
+            self.prompts.save_group(self.group_prompts)
 
         return self.prompts
 
