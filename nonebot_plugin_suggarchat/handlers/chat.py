@@ -5,7 +5,6 @@ import random
 import sys
 import time
 import traceback
-from collections import defaultdict
 from datetime import datetime
 from typing import Any
 
@@ -39,11 +38,10 @@ from ..utils.functions import (
     synthesize_message,
 )
 from ..utils.libchat import get_chat
+from ..utils.lock import get_group_lock, get_private_lock
 from ..utils.memory import MemoryModel, get_memory_data, write_memory_data
 from ..utils.tokenizer import hybrid_token_count
 
-_Group_Lock = defaultdict(asyncio.Lock)
-_Private_Lock = defaultdict(asyncio.Lock)
 command_prefix = get_driver().config.command_start or "/"
 
 
@@ -536,14 +534,14 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
 
     try:
         if isinstance(event, GroupMessageEvent):
-            async with _Group_Lock[event.group_id]:
+            async with get_group_lock(event.group_id):
                 group_data = await get_memory_data(event)
                 await handle_group_message(
                     event, matcher, bot, group_data, memory_length_limit, Date
                 )
 
         elif isinstance(event, PrivateMessageEvent):
-            async with _Private_Lock[event.user_id]:
+            async with get_private_lock(event.user_id):
                 private_data = await get_memory_data(event)
                 await handle_private_message(
                     event, matcher, bot, private_data, memory_length_limit, Date

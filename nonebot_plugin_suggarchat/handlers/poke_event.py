@@ -2,7 +2,6 @@ import asyncio
 import random
 import sys
 import traceback
-from collections import defaultdict
 
 from nonebot import logger
 from nonebot.adapters.onebot.v11 import Bot, MessageSegment
@@ -19,10 +18,8 @@ from ..utils.functions import (
     split_message_into_chats,
 )
 from ..utils.libchat import get_chat
+from ..utils.lock import get_group_lock, get_private_lock
 from ..utils.memory import get_memory_data
-
-G_Lock: defaultdict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
-P_Lock: defaultdict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
 
 
 async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
@@ -159,10 +156,10 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
 
     try:
         if event.group_id is not None:  # 判断是群聊还是私聊
-            async with G_Lock[event.group_id]:
+            async with get_group_lock(event.group_id):
                 await handle_group_poke(event, bot)
         else:
-            async with P_Lock[event.user_id]:
+            async with get_private_lock(event.user_id):
                 await handle_private_poke(event, bot)
     except Exception:
         await handle_poke_exception()  # 异常处理
