@@ -1,6 +1,6 @@
 [project]
 name = "nonebot_plugin_suggarchat"
-version = "3.2.0"
+version = "3.2.0.post1"
 description = "SuggarChat chat framework"
 authors = [{ name = "LiteSuggarDEV", email = "windowserror@163.com" }]
 dependencies = [
@@ -28,8 +28,8 @@ keywords = ['chat", "suggar", "nonebot']
 
 [project.optional-dependencies]
 openai = []
-cloudflare = []
-full = []
+cloudflare = ["nonebot_plugin_suggarex_cf>=2.0.0"]
+full = ["nonebot_plugin_suggarex_cf>=2.0.0"]
 
 [project.urls]
 "Homepage" = "https://github.com/LiteSuggarDEV/nonebot_plugin_suggarchat"
@@ -37,7 +37,7 @@ full = []
 "Issue Tracker" = "https://github.com/LiteSuggarDEV/nonebot_plugin_suggarchat/issues"
 
 [tool.uv]
-dev-dependencies = ["nonebot-plugin-suggarex-cf>=1.1.4.post3"]
+dev-dependencies = ["nonebot-plugin-suggarex-cf>=2.0.0"]
 [tool.ruff]
 line-length = 88
 target-version = "py310"
