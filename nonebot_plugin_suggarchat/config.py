@@ -84,7 +84,7 @@ class ModelPreset(BaseModel):
                 "r",
             ) as f:
                 data = json.load(f)
-            return cls(**data)
+            return cls.model_validate(data)
         return cls()  # 返回默认值
 
     def save(self, path: Path):
@@ -264,11 +264,7 @@ class Config(BaseModel):
             return cls()
         with path.open("rb") as f:
             data: dict[str, Any] = tomli.load(f)
-        # 自动更新配置文件
-        current_config = cls().model_dump()
-        updated_config = {**current_config, **data}
-        config_instance = cls(**updated_config)
-        config_instance.validate_value()  # 校验配置
+        config_instance = cls.model_validate(data)
         return config_instance
 
     def validate_value(self):
@@ -292,7 +288,7 @@ class Config(BaseModel):
             "r",
         ) as f:
             data: dict[str, Any] = json.load(f)
-        return cls(**data)
+        return cls.model_validate(data)
 
     def save_to_toml(self, path: Path):
         """保存配置到 TOML 文件"""
@@ -353,7 +349,7 @@ class ConfigManager:
         result = replace_env_vars(conf_data)
         if not isinstance(result, dict):
             raise TypeError("Expected replace_env_vars to return a dict")
-        return Config(**result)
+        return Config.model_validate(result)
 
     async def load(self):
         """_初始化配置目录_"""
@@ -375,21 +371,8 @@ class ConfigManager:
             self.ins_config = Config()
             self.ins_config.save_to_toml(self.toml_config)
 
-        def config_fix(config: Config) -> Config:
-            data = config.model_dump()
-            if "open_ai_base_url" in data:
-                data["base_url"] = data["open_ai_base_url"]
-                del data["open_ai_base_url"]
-            if "open_ai_api_key" in data:
-                data["api_key"] = data["open_ai_api_key"]
-                del data["open_ai_api_key"]
-            if config.preset == "__main__":
-                config.preset = "default"
-            return Config(**data)
-
-        self.ins_config = config_fix(self.ins_config)
         self.ins_config.save_to_toml(self.toml_config)
-
+        self.validate_presets()
         await self.get_all_presets(cache=False)
         await self.get_prompts(cache=False)
         await self.load_prompt()
@@ -397,14 +380,30 @@ class ConfigManager:
     def init_watch(self):
         if not self._initialized:
             self._tasks = []
-            self._tasks.append(asyncio.create_task(self._watch_config()))
-            self._tasks.append(asyncio.create_task(self._watch_presets()))
-
+            self._tasks.append(asyncio.create_task(self._watch_config_dir()))
             self._initialized = True
 
-    async def _watch_presets(self):
-        async for changes in awatch(self.custom_models_dir):
-            if any(
+    async def _watch_config_dir(self):
+        async for changes in awatch(self.config_dir):
+            if any(path == str(self.toml_config) for _, path in changes):
+                logger.info("检测到配置文件更改，正在重新加载配置...")
+                try:
+                    await self.reload_config()
+                except Exception as e:
+                    logger.opt(exception=e, colors=True).warning("配置文件重载失败")
+            elif any(
+                (
+                    path.startswith(str(self.group_prompts))
+                    or path.startswith(str(self.private_prompts))
+                )
+                and path.endswith(".txt")
+                for _, path in changes
+            ):
+                logger.info("检测到提示词文件更改，正在重新加载提示词...")
+                await self.get_prompts(cache=False)
+                await self.load_prompt()
+                logger.info("完成。")
+            elif any(
                 path.startswith(str(self.custom_models_dir)) and path.endswith(".json")
                 for _, path in changes
             ):
@@ -412,21 +411,23 @@ class ConfigManager:
                 await self.get_all_presets(cache=False)
                 logger.info("完成。")
 
-    async def _watch_config(
-        self,
-    ):
-        async for changes in awatch(self.toml_config):
-            if any(path == str(self.toml_config) for _, path in changes):
-                logger.info("检测到配置文件变更，正在自动重载...")
-                try:
-                    await self.reload_config()
-                except Exception as e:
-                    logger.opt(exception=e, colors=True).warning("配置文件重载失败")
+    def validate_presets(self):
+        def validate_preset(path: Path):
+            try:
+                model_data = ModelPreset.load(path)
+                model_data.save(path)
+            except Exception as e:
+                logger.opt(colors=True).error(
+                    f"Failed to validate preset '{file!s}' becauese '{e!s}'"
+                )
+
+        for file in self.custom_models_dir.glob("*.json"):
+            validate_preset(file)
 
     async def get_all_presets(self, cache: bool = False) -> list[ModelPreset]:
         """获取模型列表"""
         if cache and self.models:
-            return [model[0] for model in self.models]
+            return [model for model, _ in self.models]
         self.models.clear()  # 清空模型列表
 
         for file in self.custom_models_dir.glob("*.json"):
@@ -434,10 +435,10 @@ class ConfigManager:
             preset_data = replace_env_vars(model_data)
             if not isinstance(preset_data, dict):
                 raise TypeError("Expected replace_env_vars to return a dict")
-            model_preset = ModelPreset(**preset_data)
+            model_preset = ModelPreset.model_validate(preset_data)
             self.models.append((model_preset, file.stem))
 
-        return [model[0] for model in self.models]
+        return [model for model, _ in self.models]
 
     async def get_preset(
         self, preset: str, fix: bool = False, cache: bool = False

@@ -2,6 +2,7 @@ import asyncio
 import random
 import sys
 import traceback
+from collections import defaultdict
 
 from nonebot import logger
 from nonebot.adapters.onebot.v11 import Bot, MessageSegment
@@ -19,6 +20,9 @@ from ..utils.functions import (
 )
 from ..utils.libchat import get_chat
 from ..utils.memory import get_memory_data
+
+G_Lock: defaultdict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
+P_Lock: defaultdict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
 
 
 async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
@@ -149,15 +153,16 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
         or not config_manager.config.function.poke_reply
     ):
         matcher.skip()  # 如果功能未启用或未配置戳一戳回复，跳过处理
-        return
 
     if event.target_id != event.self_id:  # 如果目标不是机器人本身，直接返回
         return
 
     try:
         if event.group_id is not None:  # 判断是群聊还是私聊
-            await handle_group_poke(event, bot)
+            async with G_Lock[event.group_id]:
+                await handle_group_poke(event, bot)
         else:
-            await handle_private_poke(event, bot)
+            async with P_Lock[event.user_id]:
+                await handle_private_poke(event, bot)
     except Exception:
         await handle_poke_exception()  # 异常处理

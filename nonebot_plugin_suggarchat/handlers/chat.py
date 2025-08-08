@@ -273,13 +273,14 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                         return
 
                 # 检查会话超时
-                if (time.time() - data.timestamp) >= (
+                time_now = time.time()
+                if (time_now - data.timestamp) >= (
                     float(config_manager.config.session.session_control_time * 60)
                 ):
                     data.sessions.append(
                         {
                             "messages": data.memory.messages,
-                            "time": time.time(),
+                            "time": time_now,
                         }
                     )
                     while (
@@ -288,9 +289,11 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                     ):
                         data.sessions.remove(data.sessions[0])
                     data.memory.messages = []
+                    timestamp = data.timestamp
+                    data.timestamp = time_now
                     await write_memory_data(event, data)
                     if not (
-                        (time.time() - data.timestamp)
+                        (time_now - timestamp)
                         > float(
                             config_manager.config.session.session_control_time * 60 * 2
                         )
@@ -303,21 +306,20 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                         )
 
                         raise CancelException()
-                else:
-                    if (
-                        session := session_clear_map.get(session_id)
-                    ) and "继续" in event.message.extract_plain_text():
-                        with contextlib.suppress(Exception):
-                            if time.time() - session.timestamp.timestamp() < 100:
-                                await bot.delete_msg(message_id=session.message_id)
+                elif (
+                    session := session_clear_map.get(session_id)
+                ) and "继续" in event.message.extract_plain_text():
+                    with contextlib.suppress(Exception):
+                        if time_now - session.timestamp.timestamp() < 100:
+                            await bot.delete_msg(message_id=session.message_id)
 
-                        del session_clear_map[session_id]
+                    del session_clear_map[session_id]
 
-                        data.memory.messages = data.sessions[-1]["messages"]
-                        data.sessions.pop()
-                        await matcher.send("让我们继续聊天吧～")
-                        await write_memory_data(event, data)
-                        raise CancelException()
+                    data.memory.messages = data.sessions[-1]["messages"]
+                    data.sessions.pop()
+                    await matcher.send("让我们继续聊天吧～")
+                    await write_memory_data(event, data)
+                    raise CancelException()
 
             finally:
                 data.timestamp = time.time()
@@ -502,7 +504,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                     random.randint(1, 3) + (len(message) // random.randint(80, 100))
                 )
 
-    async def handle_exception():
+    async def handle_exception(e: BaseException):
         """
         处理异常：
         - 通知用户出错。
@@ -512,8 +514,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
 
         exc_type, exc_value, _ = sys.exc_info()
 
-        # 使用 logger.exception 自动附带 traceback
-        logger.exception("程序发生了未捕获的异常")
+        logger.opt(exception=e, colors=True).exception("程序发生了未捕获的异常")
 
         # 通知管理员
         await send_to_admin(f"出错了！{exc_value},\n{exc_type!s}")
@@ -539,18 +540,20 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                 group_data = await get_memory_data(event)
                 await handle_group_message(
                     event, matcher, bot, group_data, memory_length_limit, Date
-                )  # type: ignore
+                )
+
         elif isinstance(event, PrivateMessageEvent):
             async with _Private_Lock[event.user_id]:
                 private_data = await get_memory_data(event)
                 await handle_private_message(
                     event, matcher, bot, private_data, memory_length_limit, Date
                 )
+
         else:
             matcher.skip()
     except NoneBotException as e:
         raise e
     except CancelException:
         return
-    except Exception:
-        await handle_exception()
+    except Exception as e:
+        await handle_exception(e)

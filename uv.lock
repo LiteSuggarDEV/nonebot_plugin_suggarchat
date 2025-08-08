@@ -689,7 +689,7 @@ wheels = [
 
 [[package]]
 name = "nonebot-plugin-suggarchat"
-version = "3.2.0.post1"
+version = "3.2.1"
 source = { virtual = "." }
 dependencies = [
     { name = "aiofiles" },

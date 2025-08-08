@@ -1,5 +1,6 @@
 import json
 import random
+import typing
 from copy import deepcopy
 from typing import Any, TypeAlias
 
@@ -43,9 +44,8 @@ async def tools_callerdler(event: BeforeChatEvent) -> None:
     nonebot_event = event.get_nonebot_event()
     if not isinstance(nonebot_event, MessageEvent):
         return
-    bot = get_bot(str(nonebot_event.self_id))
+    bot = typing.cast(Bot, get_bot(str(nonebot_event.self_id)))
     try:
-        assert isinstance(bot, Bot), "bot is not ~.onebot.v11.Bot!"
         msg_list = event._send_message
         chat_list_backup = deepcopy(event.message.copy())
 

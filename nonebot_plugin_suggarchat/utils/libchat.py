@@ -3,12 +3,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from copy import deepcopy
 
-import nonebot
 import openai
 from nonebot import logger
-from nonebot.adapters.onebot.v11 import (
-    Bot,
-)
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
@@ -80,16 +76,9 @@ async def tools_caller(
 
 async def get_chat(
     messages: list,
-    bot: Bot | None = None,
     tokens: int = 0,
 ) -> str:
     """获取聊天响应"""
-    # 获取最大token数量
-    if bot is None:
-        nb_bot = nonebot.get_bot()
-        assert isinstance(nb_bot, Bot)
-    else:
-        nb_bot = bot
     presets = [
         config_manager.config.preset,
         *config_manager.config.preset_extension.backup_preset_list,
@@ -146,6 +135,7 @@ async def get_chat(
     if err is not None:
         raise err
     return ""
+
 
 class OpenAIAdapter(ModelAdapter):
     """OpenAI协议适配器"""
