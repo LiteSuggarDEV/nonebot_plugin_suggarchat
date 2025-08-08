@@ -264,8 +264,7 @@ class Config(BaseModel):
             return cls()
         with path.open("rb") as f:
             data: dict[str, Any] = tomli.load(f)
-        config_instance = cls.model_validate(data)
-        return config_instance
+        return cls.model_validate(data)
 
     def validate_value(self):
         """校验配置"""
