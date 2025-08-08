@@ -264,8 +264,7 @@ class Config(BaseModel):
             return cls()
         with path.open("rb") as f:
             data: dict[str, Any] = tomli.load(f)
-        config_instance = cls.model_validate(data)
-        return config_instance
+        return cls.model_validate(data)
 
     def validate_value(self):
         """校验配置"""
@@ -418,7 +417,7 @@ class ConfigManager:
                 model_data.save(path)
             except Exception as e:
                 logger.opt(colors=True).error(
-                    f"Failed to validate preset '{file!s}' becauese '{e!s}'"
+                    f"Failed to validate preset '{file!s}' because '{e!s}'"
                 )
 
         for file in self.custom_models_dir.glob("*.json"):
