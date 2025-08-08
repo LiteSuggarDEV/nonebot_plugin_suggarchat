@@ -104,12 +104,13 @@ async def get_chat(
         # 调用适配器获取聊天响应
         try:
             for index in range(1, config_manager.config.llm_config.max_retries + 1):
-                e = None
+                ex = None
                 try:
                     processer = adapter(preset, config_manager.config)
                     response = await processer.call_api(messages)
                     break  # 成功获取响应，跳出重试循环
                 except Exception as e:
+                    ex = e
                     logger.warning(f"发生错误: {e}")
                     if index == config_manager.config.llm_config.max_retries:
                         logger.warning(
@@ -120,10 +121,10 @@ async def get_chat(
                     continue
                 finally:
                     if (
-                        e is not None
+                        ex is not None
                         and not config_manager.config.llm_config.auto_retry
                     ):
-                        raise e
+                        raise ex
         except Exception as e:
             logger.warning(f"调用适配器失败{e}")
             err = e
