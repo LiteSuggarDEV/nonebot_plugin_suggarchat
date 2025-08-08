@@ -418,7 +418,7 @@ class ConfigManager:
                 model_data.save(path)
             except Exception as e:
                 logger.opt(colors=True).error(
-                    f"Failed to validate preset '{file!s}' becauese '{e!s}'"
+                    f"Failed to validate preset '{file!s}' because '{e!s}'"
                 )
 
         for file in self.custom_models_dir.glob("*.json"):
