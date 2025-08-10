@@ -28,5 +28,5 @@ def rw_lock(event: Event) -> asyncio.Lock:
     return (
         _G_Lock[event.group_id]
         if isinstance(event, GroupEvent)
-        else _P_Lock[event.user_id]
+        else _P_Lock[int(event.get_user_id())]
     )
