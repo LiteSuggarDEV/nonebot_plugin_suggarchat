@@ -10,9 +10,7 @@ async def debug_switchs(event: MessageEvent, matcher: Matcher):
     # 切换调试模式状态并发送提示信息
     if chat_manager.debug:
         chat_manager.debug = False
-        await matcher.finish(
-            "已关闭调试模式（该模式适用于开发者，请普通用户关闭调试模式）"
-        )
+        await matcher.finish("已关闭调试模式")
     else:
         chat_manager.debug = True
         await matcher.finish(

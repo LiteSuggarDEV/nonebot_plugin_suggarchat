@@ -57,7 +57,7 @@ async def choose_prompt(
         for index, i in enumerate(prompts):
             # 标记当前使用的提示词
             current_marker = (
-                " (当前)"
+                " (当前）>"
                 if (
                     prompt_type == "group"
                     and i.name == config_manager.config.group_prompt_character
@@ -68,7 +68,7 @@ async def choose_prompt(
                 )
                 else ""
             )
-            msg += f"{index + 1}). {i.name}{current_marker}\n"
+            msg += f"{current_marker}{index + 1}). {i.name}\n"
         await matcher.finish(msg)
 
     # 解析命令参数

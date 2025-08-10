@@ -15,9 +15,9 @@ async def del_memory(bot: Bot, event: MessageEvent, matcher: Matcher):
     if isinstance(event, GroupMessageEvent):
         # 清除群聊上下文
         if event.group_id == data["id"]:
-            data["memory"]["messages"] = []
+            data.memory.messages = []
     elif event.user_id == data["id"]:
-        data["memory"]["messages"] = []
+        data.memory.messages = []
 
     await matcher.send("上下文已清除")
     await write_memory_data(event, data)

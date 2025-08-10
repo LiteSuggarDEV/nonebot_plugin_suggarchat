@@ -526,6 +526,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
     if any(
         event.message.extract_plain_text().strip().startswith(prefix)
         for prefix in command_prefix
+        if prefix.strip()
     ):
         matcher.skip()
 

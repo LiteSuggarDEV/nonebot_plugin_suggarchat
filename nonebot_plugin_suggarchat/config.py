@@ -116,7 +116,7 @@ class AutoReplyConfig(BaseModel):
     enable: bool = False
     global_enable: bool = False
     probability: float = 1e-2
-    keyword: str = "at"
+    keywords: list[str] = ["at"]
 
 
 class FunctionConfig(BaseModel):

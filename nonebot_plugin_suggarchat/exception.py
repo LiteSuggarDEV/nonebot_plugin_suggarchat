@@ -1,10 +1,14 @@
-class BlockException(Exception):
+class SuggarChatException(Exception):
+    """Base exception for SuggarChat plugin."""
+
+
+class BlockException(SuggarChatException):
     pass
 
 
-class CancelException(Exception):
+class CancelException(SuggarChatException):
     pass
 
 
-class PassException(Exception):
+class PassException(SuggarChatException):
     pass

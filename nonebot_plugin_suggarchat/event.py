@@ -1,3 +1,5 @@
+from enum import Enum
+
 from nonebot.adapters.onebot.v11 import (
     Event,
     GroupMessageEvent,
@@ -5,6 +7,23 @@ from nonebot.adapters.onebot.v11 import (
     PokeNotifyEvent,
 )
 from typing_extensions import override
+
+
+class EventTypeEnum(str, Enum):
+    """
+    EventTypeEnum类用于定义和管理不同的事件类型。
+    它封装了事件类型的字符串标识，提供了一种结构化的方式 来处理和获取事件类型。
+
+    """
+
+    CHAT = "chat"
+    Nil = ""
+    POKE = "poke"
+    BEFORE_CHAT = "before_chat"
+    BEFORE_POKE = "before_poke"
+
+    def validate(self, name: str) -> bool:
+        return name in self
 
 
 class EventType:
@@ -119,7 +138,7 @@ class SuggarEvent(BasicEvent):
         :param send_message: 发送的模型的上下文
         """
         # 初始化事件类型为none
-        self._event_type = EventType().none()
+        self._event_type = EventTypeEnum.Nil
         # 保存NoneBot事件对象
         self._nbevent = nbevent
         # 初始化模型响应文本
@@ -262,7 +281,7 @@ class ChatEvent(SuggarEvent):
             send_message=send_message,
         )
         # 初始化事件类型为聊天事件
-        self._event_type = EventType().chat()
+        self._event_type = EventTypeEnum.CHAT
 
     def __str__(self):
         """
@@ -281,7 +300,7 @@ class ChatEvent(SuggarEvent):
         返回:
         字符串，表示事件类型为聊天事件。
         """
-        return EventType().chat()
+        return EventTypeEnum.CHAT
 
     @property
     def event_type(self) -> str:
@@ -291,7 +310,7 @@ class ChatEvent(SuggarEvent):
         返回:
         字符串，表示事件类型为聊天事件。
         """
-        return EventType().chat()
+        return EventTypeEnum.CHAT
 
     @override
     def get_event_on_location(self):
@@ -329,7 +348,7 @@ class PokeEvent(SuggarEvent):
             user_id=user_id,
             send_message=send_message,
         )
-        self._event_type = EventType().poke()
+        self._event_type = EventTypeEnum.POKE
 
     def __str__(self):
         # 重写__str__方法，返回PokeEvent的字符串表示
@@ -338,12 +357,12 @@ class PokeEvent(SuggarEvent):
     @property
     def event_type(self) -> str:
         # event_type属性，返回戳一戳事件类型
-        return EventType().poke()
+        return EventTypeEnum.POKE
 
     @override
     def get_event_type(self) -> str:
         # 重写get_event_type方法，返回戳一戳事件类型
-        return EventType().poke()
+        return EventTypeEnum.POKE
 
     @override
     def get_event_on_location(self):
@@ -375,7 +394,7 @@ class BeforePokeEvent(PokeEvent):
             user_id=user_id,
             send_message=send_message,
         )
-        self._event_type = EventType().before_poke()
+        self._event_type = EventTypeEnum.BEFORE_POKE
 
     @property
     def event_type(self) -> str:
@@ -413,7 +432,7 @@ class BeforeChatEvent(ChatEvent):
             user_id=user_id,
             send_message=send_message,
         )
-        self._event_type = EventType().before_chat()
+        self._event_type = EventTypeEnum.BEFORE_CHAT
 
     @property
     def event_type(self) -> str:
