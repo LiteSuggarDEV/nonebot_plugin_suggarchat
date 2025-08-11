@@ -1,4 +1,5 @@
 import time
+from copy import deepcopy
 from datetime import datetime
 
 from nonebot.adapters.onebot.v11 import Bot, Message, MessageEvent
@@ -34,7 +35,7 @@ async def sessions(
         """将当前会话覆盖为指定编号的会话"""
         try:
             if len(arg_list) >= 2:
-                data.memory.messages = data.sessions[int(arg_list[1])].messages
+                data.memory.messages = deepcopy(data.sessions[int(arg_list[1])].messages)
                 data.timestamp = time.time()
                 await write_memory_data(event, data)
                 await matcher.send("完成记忆覆盖。")
