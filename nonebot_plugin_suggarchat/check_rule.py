@@ -13,7 +13,7 @@ from .utils.functions import (
     get_current_datetime_timestamp,
     synthesize_message,
 )
-from .utils.memory import get_memory_data, write_memory_data
+from .utils.memory import Message, get_memory_data, write_memory_data
 
 nb_config = get_driver().config
 
@@ -43,7 +43,7 @@ async def is_group_admin(event: GroupMessageEvent, bot: Bot) -> bool:
 
 async def is_bot_admin(event: MessageEvent, bot: Bot) -> bool:
     return event.user_id in config_manager.config.admin.admins + [
-        int(user) for user in nb_config.superusers
+        int(user) for user in nb_config.superusers if user.isdigit()
     ]
 
 
@@ -123,28 +123,26 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
 
         # 生成消息内容并记录到内存
         content_message = f"[{role}][{Date}][{user_name}（{user_id}）]说:{content}"
-        fwd_msg = {"role": "user", "content": "<FORWARD_MSG>\n" + content_message}
+        fwd_msg = Message(role="user", content="<FORWARD_MSG>\n" + content_message)
         message_l = memory_data.memory.messages
         if not message_l:
             message_l.append(fwd_msg)
-        elif (
-            not isinstance(message_l[-1].get("content"), str)
-            or message_l[-1]["role"] != "user"
-        ):
+        elif not isinstance(message_l[-1].content, str) or message_l[-1].role != "user":
             message_l.append(fwd_msg)
-        elif not message_l[-1]["content"].startswith("<FORWARD_MSG>"):
+        elif not message_l[-1].content.startswith("<FORWARD_MSG>"):
             message_l.append(fwd_msg)
         else:
-            message_l[-1]["content"] += "\n" + content_message
-        if (
-            len(message_l[-1]["content"])
-            > config_manager.config.llm_config.memory_lenth_limit * 10
+            message_l[-1].content += "\n" + content_message
+        if len(
+            message_l[-1].content
+        ) > config_manager.config.llm_config.memory_lenth_limit * 10 and isinstance(
+            message_l[-1].content, str
         ):
-            lines = message_l[-1]["content"].splitlines(keepends=True)
+            lines = message_l[-1].content.splitlines(keepends=True)
             if len(lines) >= 2:
                 # 删除索引为1的第二行
                 del lines[1]
-            message_l[-1]["content"] = "".join(lines)
+            message_l[-1].content = "".join(lines)
         memory_data.memory.messages = message_l
 
         # 写入内存数据

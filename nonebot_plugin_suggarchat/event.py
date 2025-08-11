@@ -8,6 +8,8 @@ from nonebot.adapters.onebot.v11 import (
 )
 from typing_extensions import override
 
+from .utils.memory import Message, ToolResult
+
 
 class EventTypeEnum(str, Enum):
     """
@@ -127,7 +129,7 @@ class SuggarEvent(BasicEvent):
         model_response: list[str],
         nbevent: Event,
         user_id: int,
-        send_message: list[str],
+        send_message: list[Message | ToolResult],
     ):
         """
         初始化SuggarEvent对象
@@ -142,13 +144,11 @@ class SuggarEvent(BasicEvent):
         # 保存NoneBot事件对象
         self._nbevent = nbevent
         # 初始化模型响应文本
-        self._modelResponse: list = model_response
-        # 这里使用列表是因为Python的底层指针允许列表对象引用同一块内存，所以可以修改列表中的元素，而不需要重新分配内存，这样就能实现修改模型的响应了。
-
+        self._modelResponse: list[str] = model_response
         # 初始化用户ID
         self._user_id: int = user_id
         # 初始化要发送的消息内容
-        self._send_message: list = send_message
+        self._send_message: list[Message | ToolResult] = send_message
 
     def __bool__(self):
         return True
@@ -267,7 +267,7 @@ class ChatEvent(SuggarEvent):
     def __init__(
         self,
         nbevent: MessageEvent,
-        send_message: list[str],
+        send_message: list[Message | ToolResult],
         model_response: list[str],
         user_id: int,
     ):

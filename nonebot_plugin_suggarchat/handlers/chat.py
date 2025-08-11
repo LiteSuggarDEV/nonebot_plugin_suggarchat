@@ -39,7 +39,14 @@ from ..utils.functions import (
 )
 from ..utils.libchat import get_chat
 from ..utils.lock import get_group_lock, get_private_lock
-from ..utils.memory import MemoryModel, get_memory_data, write_memory_data
+from ..utils.memory import (
+    Memory,
+    MemoryModel,
+    Message,
+    ToolResult,
+    get_memory_data,
+    write_memory_data,
+)
 from ..utils.tokenizer import hybrid_token_count
 
 command_prefix = get_driver().config.command_start or "/"
@@ -130,10 +137,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             text = event.message.extract_plain_text()
 
         group_data.memory.messages.append(
-            {
-                "role": "user",
-                "content": text,
-            }
+            Message.model_validate({"role": "user", "content": text})
         )
         if chat_manager.debug:
             logger.debug(f"当前群组提示词：\n{config_manager.group_train}")
@@ -151,10 +155,10 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
 
         # 记录模型回复
         group_data.memory.messages.append(
-            {
-                "role": "assistant",
-                "content": str(response),
-            }
+            Message(
+                role="assistant",
+                content=response,
+            )
         )
         await send_response(event, response)
 
@@ -212,7 +216,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                     },
                 ]
                 + [
-                    {"type": "input_image", "url": seg.data.get("url")}
+                    {"type": "image_url", "image_url": {"url": seg.data.get("url")}}
                     for seg in event.message
                     if seg.data.get("type") == "image"
                 ]
@@ -221,7 +225,9 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             )
         else:
             text = event.message.extract_plain_text()
-        private_data.memory.messages.append({"role": "user", "content": text})
+        private_data.memory.messages.append(
+            Message.model_validate({"role": "user", "content": text})
+        )
         if chat_manager.debug:
             logger.debug(f"当前私聊提示词：\n{config_manager.private_train}")
         # 控制记忆长度和 token 限制
@@ -238,10 +244,10 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
 
         # 记录模型回复
         private_data.memory.messages.append(
-            {
-                "role": "assistant",
-                "content": str(response),
-            }
+            Message(
+                content=response,
+                role="assistant",
+            )
         )
         await send_response(event, response)
 
@@ -276,10 +282,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                     float(config_manager.config.session.session_control_time * 60)
                 ):
                     data.sessions.append(
-                        {
-                            "messages": data.memory.messages,
-                            "time": time_now,
-                        }
+                        Memory(messages=data.memory.messages, time=time_now)
                     )
                     while (
                         len(data.sessions)
@@ -313,7 +316,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
 
                     del session_clear_map[session_id]
 
-                    data.memory.messages = data.sessions[-1]["messages"]
+                    data.memory.messages = data.sessions[-1].messages
                     data.sessions.pop()
                     await matcher.send("让我们继续聊天吧～")
                     await write_memory_data(event, data)
@@ -362,21 +365,21 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         # Process multimodal messages when needed
         for message in data.memory.messages:
             if (
-                isinstance(message["content"], dict)
+                isinstance(message.content, list)
                 and not is_multimodal
-                and message["role"] == "user"
+                and message.role == "user"
             ):
                 message_text = ""
-                for content_part in message["content"]:
-                    if content_part["type"] == "text":
-                        message_text += content_part["text"]
-                message["content"] = message_text
+                for content_part in message.content:
+                    if content_part.type == "text":
+                        message_text += content_part.text
+                message.content = message_text
 
         # Enforce memory length limit
         while len(data.memory.messages) > 0:
             if (
                 len(data.memory.messages) > memory_length_limit
-                or data.memory.messages[0]["role"] != "user"
+                or data.memory.messages[0].role != "user"
             ):
                 del data.memory.messages[0]
             else:
@@ -387,7 +390,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         控制 token 数量，删除超出限制的旧消息，返回处理后的Tokens。
         """
         train = copy.deepcopy(train)
-        memory_l = [train, *copy.deepcopy(data.memory.messages.copy())]  # type: list[dict]
+        memory_l = [train, *[i.model_dump() for i in data.memory.messages]]
         full_string = ""
         for st in memory_l:
             if isinstance(st["content"], str):
@@ -451,11 +454,11 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             f"\n以下是一些补充内容，如果与上面任何一条有冲突请忽略。\n{data.prompt if data.prompt != '' else '无'}"
         )
         send_messages = copy.deepcopy(data.memory.messages)
-        send_messages.insert(0, train)
+        send_messages.insert(0, Message.model_validate(train))
         return send_messages
 
     async def process_chat(
-        event: MessageEvent, send_messages: list, tokens: int
+        event: MessageEvent, send_messages: list[Message | ToolResult], tokens: int
     ) -> str:
         """
         调用聊天模型生成回复，并触发相关事件。

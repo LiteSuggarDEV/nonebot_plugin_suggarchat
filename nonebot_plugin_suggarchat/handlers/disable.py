@@ -3,7 +3,7 @@ from nonebot.adapters.onebot.v11 import Bot, GroupMessageEvent
 from nonebot.matcher import Matcher
 
 from ..check_rule import is_bot_admin
-from ..utils.memory import get_memory_data, write_memory_data
+from ..utils.memory import get_memory_data
 
 
 async def disable(bot: Bot, event: GroupMessageEvent, matcher: Matcher):
@@ -15,10 +15,8 @@ async def disable(bot: Bot, event: GroupMessageEvent, matcher: Matcher):
 
     # 获取并更新群聊状态数据
     data = await get_memory_data(event)
-    if data["id"] == event.group_id:
-        if data["enable"]:
-            data["enable"] = False
-        await matcher.send("聊天功能已禁用")
+    data.enable = False
+    await data.save(event)
+    await matcher.send("聊天功能已禁用")
 
     # 保存更新后的群聊状态数据
-    await write_memory_data(event, data)

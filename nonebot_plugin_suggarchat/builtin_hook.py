@@ -24,6 +24,8 @@ from .utils.libchat import (
 from .utils.llm_tools.builtin_tools import REPORT_TOOL, report
 from .utils.llm_tools.manager import ToolsManager
 from .utils.memory import (
+    Message,
+    ToolResult,
     get_memory_data,
     write_memory_data,
 )
@@ -56,14 +58,14 @@ async def tools_callerdler(event: BeforeChatEvent) -> None:
             tools.extend(ToolsManager().tools_meta_dict(exclude_none=True).values())
             response_msg = await tools_caller(
                 [
-                    *deepcopy([i for i in msg_list if i["role"] == "system"]),
-                    deepcopy(msg_list)[-1],
+                    *deepcopy([i.model_dump() for i in msg_list if i.role == "system"]),
+                    deepcopy(msg_list)[-1].model_dump(),
                 ],
                 tools,
             )
             tool_calls = response_msg.tool_calls
             if tool_calls:
-                msg_list.append(dict(response_msg))
+                msg_list.append(Message.model_validate(dict(response_msg)))
                 for tool_call in tool_calls:
                     function_name = tool_call.function.name
                     function_args: dict = json.loads(tool_call.function.arguments)
@@ -98,12 +100,12 @@ async def tools_callerdler(event: BeforeChatEvent) -> None:
                                 )
                                 continue
                     logger.debug(f"函数{function_name}返回：{func_response}")
-                    msg = {
-                        "tool_call_id": tool_call.id,
-                        "role": "tool",
-                        "name": function_name,
-                        "content": func_response,
-                    }
+
+                    msg = ToolResult(
+                        content=func_response,
+                        name=function_name,
+                        tool_call_id=tool_call.id,
+                    )
                     msg_list.append(msg)
         except Exception as e:
             if isinstance(e, ChatException):

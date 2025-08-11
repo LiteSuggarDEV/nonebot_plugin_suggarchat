@@ -16,11 +16,12 @@ from openai.types.chat.chat_completion_tool_choice_option_param import (
 from ..chatmanager import chat_manager
 from ..config import config_manager
 from .functions import remove_think_tag
+from .memory import Message, ToolResult
 from .protocol import AdapterManager, ModelAdapter
 
 
 async def tools_caller(
-    messages: list,
+    messages: Iterable,
     tools: list,
     tool_choice: ChatCompletionToolChoiceOptionParam | None = None,
 ) -> ChatCompletionMessage:
@@ -75,7 +76,7 @@ async def tools_caller(
 
 
 async def get_chat(
-    messages: list,
+    messages: list[Message | ToolResult],
     tokens: int = 0,
 ) -> str:
     """获取聊天响应"""
@@ -107,7 +108,9 @@ async def get_chat(
                 ex = None
                 try:
                     processer = adapter(preset, config_manager.config)
-                    response = await processer.call_api(messages)
+                    response = await processer.call_api(
+                        [i.model_dump() for i in messages]
+                    )
                     break  # 成功获取响应，跳出重试循环
                 except Exception as e:
                     ex = e

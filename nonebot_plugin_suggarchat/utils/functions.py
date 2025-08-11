@@ -176,25 +176,29 @@ async def synthesize_forward_message(forward_msg: dict, bot: Bot) -> str:
     """
     result = ""
     for segment in forward_msg:
-        if isinstance(segment["data"], str):
-            try:
-                segment["data"] = json.loads(segment["data"])
-            except Exception:
-                result += segment["data"] + "<!--该消息段无法被解析-->"
-        nickname: str = segment["data"]["nickname"]
-        qq: str = segment["data"]["user_id"]
-        result += f"[{nickname}({qq})]说："
-        if isinstance(segment["data"]["content"], str):
-            result += f"{segment['data']['content']}"
-        elif isinstance(segment["data"]["content"], list):
-            for segments in segment["data"]["content"]:
-                segments_type = segments["type"]
-                if segments_type == "text":
-                    result += f"{segments['data']['text']}"
-                elif segments_type == "at":
-                    result += f" [@{segments['data']['qq']}]"
-                elif segments_type == "forward":
-                    result += f"\\（合并转发:{await synthesize_forward_message(await bot.get_forward_msg(id=segments['data']['id']), bot)}）\\"
+        try:
+            if isinstance(segment["data"], str):
+                try:
+                    segment["data"] = json.loads(segment["data"])
+                except Exception:
+                    result += segment["data"] + "<!--该消息段无法被解析-->"
+            nickname: str = segment["data"]["nickname"]
+            qq: str = segment["data"]["user_id"]
+            result += f"[{nickname}({qq})]说："
+            if isinstance(segment["data"]["content"], str):
+                result += f"{segment['data']['content']}"
+            elif isinstance(segment["data"]["content"], list):
+                for segments in segment["data"]["content"]:
+                    segments_type = segments["type"]
+                    if segments_type == "text":
+                        result += f"{segments['data']['text']}"
+                    elif segments_type == "at":
+                        result += f" [@{segments['data']['qq']}]"
+                    elif segments_type == "forward":
+                        result += f"\\（合并转发:{await synthesize_forward_message(await bot.get_forward_msg(id=segments['data']['id']), bot)}）\\"
+        except Exception as e:
+            logger.opt(colors=True, exception=e).error(f"合成转发消息时出错：{e!s}'")
+            result += "<!--该消息段无法被解析-->"
         result += "\n"
     return result
 

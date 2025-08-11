@@ -6,7 +6,7 @@ from ..check_rule import (
     is_group_admin_if_is_in_group,
 )
 from ..config import config_manager
-from ..utils.memory import get_memory_data, write_memory_data
+from ..utils.memory import get_memory_data
 
 
 async def prompt(
@@ -56,4 +56,4 @@ async def prompt(
         return
 
     # 更新记忆数据
-    await write_memory_data(event, data)
+    await data.save(event)
