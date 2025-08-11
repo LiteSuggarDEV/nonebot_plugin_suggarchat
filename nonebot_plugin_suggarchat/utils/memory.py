@@ -71,7 +71,7 @@ class MemoryModel(BaseModel, extra="allow"):
     enable: bool = Field(default=True, description="是否启用")
     memory: Memory = Field(default=Memory(), description="记忆")
     full: bool = Field(default=False, description="是否启用Fullmode")
-    sessions: list[Memory] = Field(default=[], description="会话")
+    sessions: list[Memory] = Field(default_factory=list, description="会话")
     timestamp: float = Field(default=time.time(), description="时间戳")
     fake_people: bool = Field(default=False, description="是否启用假人")
     prompt: str = Field(default="", description="用户自定义提示词")
