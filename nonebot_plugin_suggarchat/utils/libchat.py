@@ -16,7 +16,7 @@ from openai.types.chat.chat_completion_tool_choice_option_param import (
 from ..chatmanager import chat_manager
 from ..config import config_manager
 from .functions import remove_think_tag
-from .memory import Message, ToolResult
+from .memory import BaseModel, Message, ToolResult
 from .protocol import AdapterManager, ModelAdapter
 
 
@@ -109,7 +109,18 @@ async def get_chat(
                 try:
                     processer = adapter(preset, config_manager.config)
                     response = await processer.call_api(
-                        [i.model_dump() for i in messages]
+                        [
+                            (
+                                i.model_dump()
+                                if isinstance(i, BaseModel)
+                                else (
+                                    Message.model_validate(i)
+                                    if i["role"] != "tool"
+                                    else (ToolResult.model_validate(i))
+                                ).model_dump()
+                            )
+                            for i in messages
+                        ]
                     )
                     break  # 成功获取响应，跳出重试循环
                 except Exception as e:
