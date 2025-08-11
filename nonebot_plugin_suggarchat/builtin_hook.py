@@ -63,8 +63,7 @@ async def tools_callerdler(event: BeforeChatEvent) -> None:
                 ],
                 tools,
             )
-            tool_calls = response_msg.tool_calls
-            if tool_calls:
+            if tool_calls := response_msg.tool_calls:
                 msg_list.append(Message.model_validate(dict(response_msg)))
                 for tool_call in tool_calls:
                     function_name = tool_call.function.name
