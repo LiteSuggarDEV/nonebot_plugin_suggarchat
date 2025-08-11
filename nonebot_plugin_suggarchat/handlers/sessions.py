@@ -105,18 +105,18 @@ async def sessions(
         await display_sessions(data)
 
     # 根据命令执行对应操作
-    command = arg_list[0]
-    if command == "set":
-        await set_session(data, arg_list, event)
-    elif command == "del":
-        await delete_session(data, arg_list, event)
-    elif command == "archive":
-        await archive_session(data, event)
-    elif command == "clear":
-        await clear_sessions(data, event)
-    elif command == "help":
-        await matcher.finish(
-            "Sessions指令帮助：\nset：覆盖当前会话为指定编号的会话\ndel：删除指定编号的会话\narchive：归档当前会话\nclear：清空所有会话\n"
-        )
-    else:
-        await matcher.finish("未知命令，请输入/help查看帮助。")
+    match arg_list[0]:
+        case "set":
+            await set_session(data, arg_list, event)
+        case "del":
+            await delete_session(data, arg_list, event)
+        case "archive":
+            await archive_session(data, event)
+        case "clear":
+            await clear_sessions(data, event)
+        case "help":
+            await matcher.finish(
+                "Sessions指令帮助：\nset：覆盖当前会话为指定编号的会话\ndel：删除指定编号的会话\narchive：归档当前会话\nclear：清空所有会话\n"
+            )
+        case _:
+            await matcher.finish("未知命令，请输入/help查看帮助。")

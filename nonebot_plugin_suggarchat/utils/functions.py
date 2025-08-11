@@ -189,13 +189,13 @@ async def synthesize_forward_message(forward_msg: dict, bot: Bot) -> str:
                 result += f"{segment['data']['content']}"
             elif isinstance(segment["data"]["content"], list):
                 for segments in segment["data"]["content"]:
-                    segments_type = segments["type"]
-                    if segments_type == "text":
-                        result += f"{segments['data']['text']}"
-                    elif segments_type == "at":
-                        result += f" [@{segments['data']['qq']}]"
-                    elif segments_type == "forward":
-                        result += f"\\（合并转发:{await synthesize_forward_message(await bot.get_forward_msg(id=segments['data']['id']), bot)}）\\"
+                    match segments["type"]:
+                        case "text":
+                            result += f"{segments['data']['text']}"
+                        case "at":
+                            result += f" [@{segments['data']['qq']}]"
+                        case "forward":
+                            result += f"\\（合并转发:{await synthesize_forward_message(await bot.get_forward_msg(id=segments['data']['id']), bot)}）\\"
         except Exception as e:
             logger.opt(colors=True, exception=e).error(f"合成转发消息时出错：{e!s}'")
             result += "<!--该消息段无法被解析-->"
