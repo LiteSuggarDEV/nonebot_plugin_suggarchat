@@ -225,6 +225,13 @@ class AdminConfig(BaseModel):
     admins: list[int] = []
 
 
+class UsageLimitConfig(BaseModel):
+    enable_usage_limit: bool = False
+    group_daily_limit: int = 100  # 每个群每天的使用次数限制(-1为不限制)
+    user_daily_limit: int = 100  # 每个用户每天的使用次数限制(-1为不限制)
+    total_daily_limit: int = 1500  # 总使用次数限制(-1为不限制)
+
+
 class LLM_Config(BaseModel):
     tools: ToolsConfig = ToolsConfig()
     stream: bool = False
@@ -250,6 +257,7 @@ class Config(BaseModel):
     admin: AdminConfig = AdminConfig()
     llm_config: LLM_Config = LLM_Config()
     extra: ExtraConfig = ExtraConfig()
+    usage_limit: UsageLimitConfig = UsageLimitConfig()
     enable: bool = False
     parse_segments: bool = True
     matcher_function: bool = True

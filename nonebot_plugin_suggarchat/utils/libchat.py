@@ -104,46 +104,27 @@ async def get_chat(
         response = ""
         # 调用适配器获取聊天响应
         try:
-            for index in range(1, config_manager.config.llm_config.max_retries + 1):
-                ex = None
-                try:
-                    processer = adapter(preset, config_manager.config)
-                    response = await processer.call_api(
-                        [
-                            (
-                                i.model_dump()
-                                if isinstance(i, BaseModel)
-                                else (
-                                    Message.model_validate(i)
-                                    if i["role"] != "tool"
-                                    else (ToolResult.model_validate(i))
-                                ).model_dump()
-                            )
-                            for i in messages
-                        ]
+            processer = adapter(preset, config_manager.config)
+            response = await processer.call_api(
+                [
+                    (
+                        i.model_dump()
+                        if isinstance(i, BaseModel)
+                        else (
+                            Message.model_validate(i)
+                            if i["role"] != "tool"
+                            else (ToolResult.model_validate(i))
+                        ).model_dump()
                     )
-                    break  # 成功获取响应，跳出重试循环
-                except Exception as e:
-                    ex = e
-                    logger.warning(f"发生错误: {e}")
-                    if index == config_manager.config.llm_config.max_retries:
-                        logger.warning(
-                            f"请检查API Key和API base_url！获取对话时发生错误: {e}"
-                        )
-                        raise e
-                    logger.info(f"开始第 {index + 1} 次重试")
-                    continue
-                finally:
-                    if (
-                        ex is not None
-                        and not config_manager.config.llm_config.auto_retry
-                    ):
-                        raise ex
+                    for i in messages
+                ]
+            )
         except Exception as e:
-            logger.warning(f"调用适配器失败{e}")
+            logger.warning(f"调用适配器失败{e}，正在尝试下一个Adapter")
             err = e
             continue
-
+        else:
+            err = None
         if chat_manager.debug:
             logger.debug(response)
         return remove_think_tag(response) if is_thought_chain_model else response
@@ -163,6 +144,7 @@ class OpenAIAdapter(ModelAdapter):
             base_url=preset.base_url,
             api_key=preset.api_key,
             timeout=config.llm_config.llm_timeout,
+            max_retries=config.llm_config.max_retries,
         )
         completion: ChatCompletion | openai.AsyncStream[ChatCompletionChunk] | None = (
             None

@@ -4,6 +4,7 @@ import time
 from nonebot import get_driver, logger
 from nonebot.adapters.onebot.v11 import Bot
 from nonebot.adapters.onebot.v11.event import (
+    Event,
     GroupMessageEvent,
     MessageEvent,
 )
@@ -13,7 +14,7 @@ from .utils.functions import (
     get_current_datetime_timestamp,
     synthesize_message,
 )
-from .utils.memory import Message, get_memory_data, write_memory_data
+from .utils.memory import Message, get_memory_data
 
 nb_config = get_driver().config
 
@@ -41,8 +42,8 @@ async def is_group_admin(event: GroupMessageEvent, bot: Bot) -> bool:
     return is_admin
 
 
-async def is_bot_admin(event: MessageEvent, bot: Bot) -> bool:
-    return event.user_id in config_manager.config.admin.admins + [
+async def is_bot_admin(event: Event) -> bool:
+    return (int(event.get_user_id())) in config_manager.config.admin.admins + [
         int(user) for user in nb_config.superusers if user.isdigit()
     ]
 
@@ -80,13 +81,13 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
         rand = random.random()
         rate = config_manager.config.autoreply.probability
 
-        # 获取内存数据
+        # 获取记忆数据
         memory_data = await get_memory_data(event)
         if rand <= rate and (
             config_manager.config.autoreply.global_enable or memory_data.fake_people
         ):
             memory_data.timestamp = time.time()
-            await write_memory_data(event, memory_data)
+            await memory_data.save(event)
             return True
         # 合成消息内容
         content = await synthesize_message(message, bot)
@@ -121,7 +122,7 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
             else event.sender.nickname
         )
 
-        # 生成消息内容并记录到内存
+        # 生成消息内容并记录到记忆
         content_message = f"[{role}][{Date}][{user_name}（{user_id}）]说:{content}"
         fwd_msg = Message(role="user", content="<FORWARD_MSG>\n" + content_message)
         message_l = memory_data.memory.messages
@@ -145,8 +146,8 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
             message_l[-1].content = "".join(lines)
         memory_data.memory.messages = message_l
 
-        # 写入内存数据
-        await write_memory_data(event, memory_data)
+        # 写入记忆数据
+        await memory_data.save(event)
 
     # 默认返回 False
     return False

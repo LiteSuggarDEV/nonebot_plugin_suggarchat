@@ -3,7 +3,7 @@ from nonebot.matcher import Matcher
 from nonebot.params import CommandArg
 
 from ..check_rule import is_group_admin
-from ..utils.memory import get_memory_data, write_memory_data
+from ..utils.memory import get_memory_data
 
 
 async def switch(
@@ -16,14 +16,14 @@ async def switch(
     if arg in ("开启", "on", "启用", "enable"):
         if not data.fake_people:
             data.fake_people = True
-            await write_memory_data(event, data)
+            await data.save(event)
             await matcher.send("开启FakePeople")
         else:
             await matcher.send("已开启")
     elif arg in ("关闭", "off", "禁用", "disable"):
         if data.fake_people:
             data.fake_people = False
-            await write_memory_data(event, data)
+            await data.save(event)
             await matcher.send("关闭FakePeople")
         else:
             await matcher.send("已关闭")

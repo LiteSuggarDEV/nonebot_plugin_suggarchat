@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import time
+import typing
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, overload
 
 import aiofiles
 from nonebot import logger
@@ -75,34 +77,51 @@ class MemoryModel(BaseModel, extra="allow"):
     timestamp: float = Field(default=time.time(), description="时间戳")
     fake_people: bool = Field(default=False, description="是否启用假人")
     prompt: str = Field(default="", description="用户自定义提示词")
+    usage: int = Field(default=0, description="请求次数")
 
     async def save(self, event: Event) -> None:
-        """保存当前内存数据到文件"""
+        """保存当前记忆数据到文件"""
         await write_memory_data(event, self)
 
 
-async def get_memory_data(event: Event) -> MemoryModel:
+@overload
+async def get_memory_data(*, user_id: int) -> MemoryModel: ...
+
+
+@overload
+async def get_memory_data(*, group_id: int) -> MemoryModel: ...
+
+
+@overload
+async def get_memory_data(event: Event) -> MemoryModel: ...
+
+
+async def get_memory_data(
+    event: Event | None = None,
+    *,
+    user_id: int | None = None,
+    group_id: int | None = None,
+) -> MemoryModel:
     """获取事件对应的记忆数据，如果不存在则创建初始数据"""
-    async with rw_lock(event):
-        if chat_manager.debug:
-            logger.debug(f"获取{event.get_type()} {event.get_session_id()} 的记忆数据")
+    if event:
+        lock = rw_lock(event)
+    elif user_id:
+        lock = rw_lock(user_id=user_id)
+    elif group_id:
+        lock = rw_lock(group_id=group_id)
+    else:
+        raise ValueError("event or user_id or group_id must be provided")
+    async with lock:
         private_memory = config_manager.private_memory
         group_memory = config_manager.group_memory
         conf_path: None | Path = None
         Path.mkdir(private_memory, exist_ok=True)
         Path.mkdir(group_memory, exist_ok=True)
 
-        if (
-            not isinstance(event, PrivateMessageEvent)
-            and not isinstance(event, GroupMessageEvent)
-            and isinstance(event, PokeNotifyEvent)
-            and event.group_id
-        ) or (
-            not isinstance(event, PrivateMessageEvent)
-            and isinstance(event, GroupMessageEvent)
-            and event.group_id
-        ):
-            group_id: int = event.group_id
+        if group_id := (getattr(event, "group_id", None) or group_id):
+            if chat_manager.debug:
+                logger.debug(f"获取Group{group_id} 的记忆数据")
+            group_id = typing.cast(int, group_id)
             conf_path = Path(group_memory / f"{group_id}.json")
             if not conf_path.exists():
                 async with aiofiles.open(
@@ -110,11 +129,10 @@ async def get_memory_data(event: Event) -> MemoryModel:
                     "w",
                 ) as f:
                     await f.write(MemoryModel().model_dump_json())
-        elif (
-            not isinstance(event, PrivateMessageEvent)
-            and isinstance(event, PokeNotifyEvent)
-        ) or isinstance(event, PrivateMessageEvent):
-            user_id = event.user_id
+        else:
+            user_id = getattr(event, "user_id", user_id)
+            if chat_manager.debug:
+                logger.debug(f"获取用户{user_id}的记忆数据")
             conf_path = Path(private_memory / f"{user_id}.json")
             if not conf_path.exists():
                 async with aiofiles.open(
@@ -122,7 +140,6 @@ async def get_memory_data(event: Event) -> MemoryModel:
                     "w",
                 ) as f:
                     await f.write(MemoryModel().model_dump_json())
-        assert conf_path is not None, "conf_path is None"
         convert_to_utf8(conf_path)
         async with aiofiles.open(
             str(conf_path),
@@ -130,6 +147,13 @@ async def get_memory_data(event: Event) -> MemoryModel:
             conf = MemoryModel(**json.loads(await f.read()))
             if chat_manager.debug:
                 logger.debug(f"读取到记忆数据{conf}")
+            if (
+                not datetime.fromtimestamp(conf.timestamp).date().isoformat()
+                == datetime.now().date().isoformat()
+            ):
+                conf.usage = 0
+                if event:
+                    await conf.save(event)
             return conf
 
 

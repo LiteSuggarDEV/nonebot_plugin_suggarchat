@@ -45,7 +45,6 @@ from ..utils.memory import (
     Message,
     ToolResult,
     get_memory_data,
-    write_memory_data,
 )
 from ..utils.tokenizer import hybrid_token_count
 
@@ -61,7 +60,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         event: GroupMessageEvent,
         matcher: Matcher,
         bot: Bot,
-        group_data: MemoryModel,
+        data: MemoryModel,
         memory_length_limit: int,
         Date: str,
     ):
@@ -76,12 +75,12 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         if not config_manager.config.function.enable_group_chat:
             matcher.skip()
 
-        if not group_data.enable:
+        if not data.enable:
             await matcher.send("聊天没有启用")
             return
 
         # 管理会话上下文
-        await manage_sessions(event, group_data, chat_manager.session_clear_group)
+        await manage_sessions(event, data, chat_manager.session_clear_group)
 
         group_id = event.group_id
         user_id = event.user_id
@@ -136,25 +135,25 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         else:
             text = event.message.extract_plain_text()
 
-        group_data.memory.messages.append(
+        data.memory.messages.append(
             Message.model_validate({"role": "user", "content": text})
         )
         if chat_manager.debug:
             logger.debug(f"当前群组提示词：\n{config_manager.group_train}")
         # 控制记忆长度和 token 限制
-        await enforce_memory_limit(group_data, memory_length_limit)
+        await enforce_memory_limit(data, memory_length_limit)
         tokens = await enforce_token_limit(
-            group_data, copy.deepcopy(config_manager.group_train)
+            data, copy.deepcopy(config_manager.group_train)
         )
 
         # 准备发送给模型的消息
         send_messages = prepare_send_messages(
-            group_data, copy.deepcopy(config_manager.group_train)
+            data, copy.deepcopy(config_manager.group_train)
         )
         response = await process_chat(event, send_messages, tokens)
 
         # 记录模型回复
-        group_data.memory.messages.append(
+        data.memory.messages.append(
             Message(
                 role="assistant",
                 content=response,
@@ -163,13 +162,14 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         await send_response(event, response)
 
         # 写入记忆数据
-        await write_memory_data(event, group_data)
+        data.usage += 1
+        await data.save(event)
 
     async def handle_private_message(
         event: PrivateMessageEvent,
         matcher: Matcher,
         bot: Bot,
-        private_data: MemoryModel,
+        data: MemoryModel,
         memory_length_limit: int,
         Date: str,
     ):
@@ -185,7 +185,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             matcher.skip()
 
         # 管理会话上下文
-        await manage_sessions(event, private_data, chat_manager.session_clear_user)
+        await manage_sessions(event, data, chat_manager.session_clear_user)
 
         content = await synthesize_message(event.get_message(), bot)
 
@@ -225,25 +225,25 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             )
         else:
             text = event.message.extract_plain_text()
-        private_data.memory.messages.append(
+        data.memory.messages.append(
             Message.model_validate({"role": "user", "content": text})
         )
         if chat_manager.debug:
             logger.debug(f"当前私聊提示词：\n{config_manager.private_train}")
         # 控制记忆长度和 token 限制
-        await enforce_memory_limit(private_data, memory_length_limit)
+        await enforce_memory_limit(data, memory_length_limit)
         tokens = await enforce_token_limit(
-            private_data, copy.deepcopy(config_manager.private_train)
+            data, copy.deepcopy(config_manager.private_train)
         )
 
         # 准备发送给模型的消息
         send_messages = prepare_send_messages(
-            private_data, copy.deepcopy(config_manager.private_train)
+            data, copy.deepcopy(config_manager.private_train)
         )
         response = await process_chat(event, send_messages, tokens)
 
         # 记录模型回复
-        private_data.memory.messages.append(
+        data.memory.messages.append(
             Message(
                 content=response,
                 role="assistant",
@@ -252,7 +252,8 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         await send_response(event, response)
 
         # 写入记忆数据
-        await write_memory_data(event, private_data)
+        data.usage += 1
+        await data.save(event)
 
     async def manage_sessions(
         event: GroupMessageEvent | PrivateMessageEvent,
@@ -292,7 +293,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                     data.memory.messages = []
                     timestamp = data.timestamp
                     data.timestamp = time_now
-                    await write_memory_data(event, data)
+                    await data.save(event)
                     if not (
                         (time_now - timestamp)
                         > float(
@@ -319,7 +320,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                     data.memory.messages = data.sessions[-1].messages
                     data.sessions.pop()
                     await matcher.send("让我们继续聊天吧～")
-                    await write_memory_data(event, data)
+                    await data.save(event)
                     raise CancelException()
 
             finally:
@@ -537,18 +538,19 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         await matcher.finish(chat_manager.menu_msg)
 
     try:
+        data = await get_memory_data(event)
+        if not await chat_manager.usage_enough(event):
+            await matcher.finish("今天额度已经用完了～")
         if isinstance(event, GroupMessageEvent):
             async with get_group_lock(event.group_id):
-                group_data = await get_memory_data(event)
                 await handle_group_message(
-                    event, matcher, bot, group_data, memory_length_limit, Date
+                    event, matcher, bot, data, memory_length_limit, Date
                 )
 
         elif isinstance(event, PrivateMessageEvent):
             async with get_private_lock(event.user_id):
-                private_data = await get_memory_data(event)
                 await handle_private_message(
-                    event, matcher, bot, private_data, memory_length_limit, Date
+                    event, matcher, bot, data, memory_length_limit, Date
                 )
 
         else:

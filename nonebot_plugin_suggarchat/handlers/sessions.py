@@ -9,7 +9,7 @@ from nonebot.params import CommandArg
 
 from ..check_rule import is_group_admin_if_is_in_group
 from ..config import config_manager
-from ..utils.memory import Memory, MemoryModel, get_memory_data, write_memory_data
+from ..utils.memory import Memory, MemoryModel, get_memory_data
 
 
 async def sessions(
@@ -35,9 +35,11 @@ async def sessions(
         """将当前会话覆盖为指定编号的会话"""
         try:
             if len(arg_list) >= 2:
-                data.memory.messages = deepcopy(data.sessions[int(arg_list[1])].messages)
+                data.memory.messages = deepcopy(
+                    data.sessions[int(arg_list[1])].messages
+                )
                 data.timestamp = time.time()
-                await write_memory_data(event, data)
+                await data.save(event)
                 await matcher.send("完成记忆覆盖。")
             else:
                 await matcher.finish("请输入正确编号")
@@ -53,7 +55,7 @@ async def sessions(
         try:
             if len(arg_list) >= 2:
                 data.sessions.remove(data.sessions[int(arg_list[1])])
-                await write_memory_data(event, data)
+                await data.save(event)
             else:
                 await matcher.finish("请输入正确编号")
         except NoneBotException as e:
@@ -70,7 +72,7 @@ async def sessions(
                 )
                 data.memory.messages = []
                 data.timestamp = time.time()
-                await write_memory_data(event, data)
+                await data.save(event)
                 await matcher.finish("当前会话已归档。")
             else:
                 await matcher.finish("当前对话为空！")
@@ -84,7 +86,7 @@ async def sessions(
         try:
             data.sessions = []
             data.timestamp = time.time()
-            await write_memory_data(event, data)
+            await data.save(event)
             await matcher.finish("会话已清空。")
         except NoneBotException as e:
             raise e

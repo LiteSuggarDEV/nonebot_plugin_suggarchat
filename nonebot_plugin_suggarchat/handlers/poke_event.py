@@ -27,7 +27,22 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
 
     async def handle_group_poke(event: PokeNotifyEvent, bot: Bot):
         """处理群聊中的戳一戳事件"""
-        Group_Data = await get_memory_data(event)  # 获取群聊相关数据
+        Group_Data = await get_memory_data(event=event)  # 获取群聊相关数据
+        event_data = event.model_dump(exclude={"group_id"})
+        event_data["group_id"] = None
+        u_event = PokeNotifyEvent.model_validate(event_data)
+        u_data = await get_memory_data(event=u_event)
+        if config_manager.config.usage_limit.enable_usage_limit:
+            if (
+                data.usage >= config_manager.config.usage_limit.group_daily_limit
+                and config_manager.config.usage_limit.group_daily_limit != -1
+            ):
+                await matcher.finish()
+            elif (
+                u_data.usage >= config_manager.config.usage_limit.user_daily_limit
+                and config_manager.config.usage_limit.user_daily_limit != -1
+            ):
+                await matcher.finish()
         if not Group_Data["enable"]:  # 如果群聊功能未启用，直接返回
             return
         if not event.group_id:  # 如果群组ID不存在，直接返回
@@ -65,6 +80,13 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
 
     async def handle_private_poke(event: PokeNotifyEvent, bot: Bot):
         """处理私聊中的戳一戳事件"""
+        if (
+            data.usage >= config_manager.config.usage_limit.user_daily_limit
+            and config_manager.config.usage_limit.enable_usage_limit
+            and config_manager.config.usage_limit.user_daily_limit != -1
+        ):
+            await matcher.finish()
+
         name = await get_friend_name(event.user_id, bot)  # 获取好友信息
         send_messages = [
             {"role": "system", "content": f"{config_manager.private_train}"},
@@ -97,6 +119,8 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
 
         # 获取聊天模型的回复
         response = await get_chat(send_messages)
+        data.usage += 1  # 增加使用次数
+        await data.save(event)  # 保存数据
 
         if config_manager.config.matcher_function:
             # 触发自定义事件后置处理
@@ -153,7 +177,7 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
 
     if event.target_id != event.self_id:  # 如果目标不是机器人本身，直接返回
         return
-
+    data = await get_memory_data(event)  # 获取用户或群组相关数据
     try:
         if event.group_id is not None:  # 判断是群聊还是私聊
             async with get_group_lock(event.group_id):

@@ -1,8 +1,14 @@
+import typing
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from nonebot.adapters.onebot.v11 import Event
 from pydantic import BaseModel, Field
+
+from .check_rule import is_bot_admin
+from .config import config_manager
+from .utils.memory import get_memory_data
 
 
 class SessionTemp(BaseModel):
@@ -37,6 +43,33 @@ class ChatManager:
         "/choose_prompt <group/private> <预设名称> 设置群聊/私聊的全局提示词预设\n"
     )
     menu_msg += "/fakepeople <on/off>模拟聊天"
+
+    async def usage_enough(self, event: Event) -> bool:
+        config = config_manager.config
+        if not config.usage_limit.enable_usage_limit:
+            return True
+        user_id = int(event.get_user_id())
+        if await is_bot_admin(event):
+            return True
+        if config.usage_limit.user_daily_limit == -1:
+            return True
+        if (
+            await get_memory_data(user_id=user_id)
+        ).usage >= config.usage_limit.user_daily_limit:
+            return False
+        if hasattr(event, "group_id"):
+            gid = getattr(event, "group_id")
+            if gid is None:
+                return True
+            group_id = typing.cast(int, gid)
+            if config.usage_limit.group_daily_limit == -1:
+                return True
+            if (
+                await get_memory_data(group_id=group_id)
+            ).usage >= config.usage_limit.group_daily_limit:
+                return False
+
+        return True
 
 
 chat_manager = ChatManager()

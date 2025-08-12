@@ -27,7 +27,6 @@ from .utils.memory import (
     Message,
     ToolResult,
     get_memory_data,
-    write_memory_data,
 )
 
 prehook = on_before_chat(block=False, priority=1)
@@ -80,7 +79,7 @@ async def tools_callerdler(event: BeforeChatEvent) -> None:
                             if config_manager.config.llm_config.tools.report_then_block:
                                 data = await get_memory_data(nonebot_event)
                                 data.memory.messages = []
-                                await write_memory_data(nonebot_event, data)
+                                await data.save(nonebot_event)
                                 await bot.send(
                                     nonebot_event,
                                     random.choice(
@@ -138,7 +137,7 @@ async def cookie(event: ChatEvent, bot: Bot):
                 )
                 data = await get_memory_data(nonebot_event)
                 data.memory.messages = []
-                await write_memory_data(nonebot_event, data)
+                await data.save(nonebot_event)
                 await bot.send(
                     nonebot_event,
                     random.choice(config_manager.config.cookies.block_msg),
