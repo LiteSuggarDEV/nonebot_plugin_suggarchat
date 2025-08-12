@@ -8,7 +8,7 @@ from ..utils.memory import get_memory_data
 
 async def disable(bot: Bot, event: GroupMessageEvent, matcher: Matcher):
     """处理禁用聊天功能的异步函数"""
-    if not await is_bot_admin(event, bot):
+    if not await is_bot_admin(event):
         await matcher.finish("你没有权限禁用聊天功能")
     # 记录禁用操作日志
     logger.debug(f"{event.group_id} disabled")
