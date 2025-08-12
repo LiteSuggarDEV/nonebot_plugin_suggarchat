@@ -37,7 +37,7 @@ from ..utils.functions import (
     split_message_into_chats,
     synthesize_message,
 )
-from ..utils.libchat import get_chat
+from ..utils.libchat import get_chat, usage_enough
 from ..utils.lock import get_group_lock, get_private_lock
 from ..utils.memory import (
     Memory,
@@ -539,7 +539,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
 
     try:
         data = await get_memory_data(event)
-        if not await chat_manager.usage_enough(event):
+        if not await usage_enough(event):
             await matcher.finish("今天额度已经用完了～")
         if isinstance(event, GroupMessageEvent):
             async with get_group_lock(event.group_id):

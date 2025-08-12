@@ -17,7 +17,7 @@ from ..utils.functions import (
     get_friend_name,
     split_message_into_chats,
 )
-from ..utils.libchat import get_chat
+from ..utils.libchat import get_chat, usage_enough
 from ..utils.lock import get_group_lock, get_private_lock
 from ..utils.memory import get_memory_data
 
@@ -179,6 +179,8 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
         return
     data = await get_memory_data(event)  # 获取用户或群组相关数据
     try:
+        if not await usage_enough(event):  # 检查用户或群组使用次数是否超出限制
+            return
         if event.group_id is not None:  # 判断是群聊还是私聊
             async with get_group_lock(event.group_id):
                 await handle_group_poke(event, bot)

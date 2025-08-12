@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import typing
 from collections.abc import Iterable
 from copy import deepcopy
 
 import openai
 from nonebot import logger
+from nonebot.adapters.onebot.v11 import Event
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
@@ -13,11 +15,41 @@ from openai.types.chat.chat_completion_tool_choice_option_param import (
     ChatCompletionToolChoiceOptionParam,
 )
 
+from nonebot_plugin_suggarchat.check_rule import is_bot_admin
+
 from ..chatmanager import chat_manager
 from ..config import config_manager
 from .functions import remove_think_tag
-from .memory import BaseModel, Message, ToolResult
+from .memory import BaseModel, Message, ToolResult, get_memory_data
 from .protocol import AdapterManager, ModelAdapter
+
+
+async def usage_enough(event: Event) -> bool:
+    config = config_manager.config
+    if not config.usage_limit.enable_usage_limit:
+        return True
+    user_id = int(event.get_user_id())
+    if await is_bot_admin(event):
+        return True
+    if config.usage_limit.user_daily_limit == -1:
+        return True
+    if (
+        await get_memory_data(user_id=user_id)
+    ).usage >= config.usage_limit.user_daily_limit:
+        return False
+    if hasattr(event, "group_id"):
+        gid = getattr(event, "group_id")
+        if gid is None:
+            return True
+        group_id = typing.cast(int, gid)
+        if config.usage_limit.group_daily_limit == -1:
+            return True
+        if (
+            await get_memory_data(group_id=group_id)
+        ).usage >= config.usage_limit.group_daily_limit:
+            return False
+
+    return True
 
 
 async def tools_caller(
