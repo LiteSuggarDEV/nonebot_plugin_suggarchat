@@ -3,7 +3,6 @@ import re
 from datetime import datetime
 from typing import Any
 
-import chardet
 import pytz
 from nonebot import logger
 from nonebot.adapters.onebot.v11 import (
@@ -120,33 +119,6 @@ def split_message_into_chats(text: str, max_length: int = 100) -> list[str]:
             result.extend(chunks)
 
     return result
-
-
-def convert_to_utf8(file_path) -> bool:
-    """将文件编码转换为 UTF-8"""
-    if not config_manager.config.encoding_settings.force_utf8:
-        return False
-    file_path = str(file_path)
-    with open(file_path, "rb") as file:
-        raw_data = file.read()
-        result = chardet.detect(raw_data)
-        encoding = result["encoding"]
-    if encoding is None:
-        try:
-            with open(file_path) as f:
-                contents = f.read()
-                if contents.strip() == "":
-                    return True
-        except Exception:
-            logger.warning(f"无法读取文件{file_path}")
-            return False
-        logger.warning(f"无法检测到编码{file_path}")
-        return False
-    with open(file_path, encoding=encoding) as file:
-        content = file.read()
-    with open(file_path, "w", encoding="utf-8") as file:
-        file.write(content)
-    return True
 
 
 async def synthesize_forward_message(forward_msg: dict, bot: Bot) -> str:

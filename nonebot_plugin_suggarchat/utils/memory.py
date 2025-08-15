@@ -20,7 +20,6 @@ from pydantic import Field
 
 from ..chatmanager import chat_manager
 from ..config import config_manager
-from .functions import convert_to_utf8
 from .lock import rw_lock
 
 
@@ -127,6 +126,7 @@ async def get_memory_data(
                 async with aiofiles.open(
                     str(conf_path),
                     "w",
+                    encoding="u8",
                 ) as f:
                     await f.write(MemoryModel().model_dump_json())
         else:
@@ -138,12 +138,10 @@ async def get_memory_data(
                 async with aiofiles.open(
                     str(conf_path),
                     "w",
+                    encoding="u8",
                 ) as f:
                     await f.write(MemoryModel().model_dump_json())
-        convert_to_utf8(conf_path)
-        async with aiofiles.open(
-            str(conf_path),
-        ) as f:
+        async with aiofiles.open(str(conf_path), encoding="u8") as f:
             conf = MemoryModel(**json.loads(await f.read()))
             if chat_manager.debug:
                 logger.debug(f"读取到记忆数据{conf}")
@@ -181,6 +179,7 @@ async def write_memory_data(event: Event, data: MemoryModel) -> None:
                     async with aiofiles.open(
                         str(conf_path),
                         "w",
+                        encoding="u8",
                     ) as f:
                         await f.write(MemoryModel().model_dump_json())
             else:
@@ -190,11 +189,13 @@ async def write_memory_data(event: Event, data: MemoryModel) -> None:
                     async with aiofiles.open(
                         str(conf_path),
                         "w",
+                        encoding="u8",
                     ) as f:
                         await f.write(MemoryModel().model_dump_json())
         assert conf_path is not None
         async with aiofiles.open(
             str(conf_path),
             "w",
+            encoding="u8",
         ) as f:
             await f.write(str(data.model_dump_json()))

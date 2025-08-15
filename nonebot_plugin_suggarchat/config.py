@@ -94,10 +94,6 @@ class ModelPreset(BaseModel):
             json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)
 
 
-class Encoding(BaseModel):
-    force_utf8: bool = True
-
-
 class ToolsConfig(BaseModel):
     enable_tools: bool = True
     enable_report: bool = True
@@ -250,7 +246,6 @@ class Config(BaseModel):
     default_preset: ModelPreset = ModelPreset()
     session: SessionConfig = SessionConfig()
     cookies: CookieModel = CookieModel()
-    encoding_settings: Encoding = Encoding()
     autoreply: AutoReplyConfig = AutoReplyConfig()
     function: FunctionConfig = FunctionConfig()
     extended: ExtendConfig = ExtendConfig()
@@ -319,6 +314,7 @@ class Prompts:
         for prompt in self.group:
             with (path / f"{prompt.name}.txt").open(
                 "w",
+                encoding="u8",
             ) as f:
                 f.write(prompt.text)
 
@@ -327,6 +323,7 @@ class Prompts:
         for prompt in self.private:
             with (path / f"{prompt.name}.txt").open(
                 "w",
+                encoding="u8",
             ) as f:
                 f.write(prompt.text)
 
@@ -478,15 +475,11 @@ class ConfigManager:
             return self.prompts
         self.prompts = Prompts()
         for file in self.private_prompts.glob("*.txt"):
-            async with open(
-                str(file),
-            ) as f:
+            async with open(str(file), encoding="u8") as f:
                 prompt = await f.read()
             self.prompts.private.append(Prompt(prompt, file.stem))
         for file in self.group_prompts.glob("*.txt"):
-            async with open(
-                str(file),
-            ) as f:
+            async with open(str(file), encoding="u8") as f:
                 prompt = await f.read()
             self.prompts.group.append(Prompt(prompt, file.stem))
         if not self.prompts.private:
