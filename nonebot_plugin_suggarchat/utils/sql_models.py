@@ -82,7 +82,9 @@ async def get_or_create_data(
     for_update: bool = False,
 ) -> Memory | tuple[GroupConfig, Memory]:
     async with session:
-        stmt = select(Memory).where(Memory.id == ins_id, Memory.is_group == is_group)
+        stmt = select(Memory).where(
+            Memory.ins_id == ins_id, Memory.is_group == is_group
+        )
         stmt = stmt if not for_update else stmt.with_for_update()
         result = await session.execute(stmt)
         if not (memory := result.scalar()):
