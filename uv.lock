@@ -872,7 +872,7 @@ default = [
 
 [[package]]
 name = "nonebot-plugin-suggarchat"
-version = "3.4.0.dev1"
+version = "3.4.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -921,7 +921,7 @@ requires-dist = [
     { name = "nonebot-plugin-suggarex-cf", marker = "extra == 'cloudflare'", specifier = ">=2.0.0" },
     { name = "nonebot-plugin-suggarex-cf", marker = "extra == 'full'", specifier = ">=2.0.0" },
     { name = "nonebot2", extras = ["fastapi"], specifier = ">=2.2.0" },
-    { name = "openai", specifier = ">=1.66.3" },
+    { name = "openai", specifier = ">=1.66.3,<=1.99.0" },
     { name = "pydantic", specifier = ">=2.4.2" },
     { name = "pytz", specifier = ">=2025.1" },
     { name = "stubs", specifier = ">=1.0.0" },
@@ -993,7 +993,7 @@ wheels = [
 
 [[package]]
 name = "openai"
-version = "1.99.9"
+version = "1.99.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -1005,9 +1005,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8a/d2/ef89c6f3f36b13b06e271d3cc984ddd2f62508a0972c1cbcc8485a6644ff/openai-1.99.9.tar.gz", hash = "sha256:f2082d155b1ad22e83247c3de3958eb4255b20ccf4a1de2e6681b6957b554e92", size = 506992 }
+sdist = { url = "https://files.pythonhosted.org/packages/c5/72/3f49a3d0452019febd70fcf258743e01dc1ca43a95cc97a4b5b773d2d0a5/openai-1.99.0.tar.gz", hash = "sha256:7b985693da4dc9783394b785212bb67a65352cb6b867b1756b0e5e8321b4aba9", size = 497020 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e8/fb/df274ca10698ee77b07bff952f302ea627cc12dac6b85289485dd77db6de/openai-1.99.9-py3-none-any.whl", hash = "sha256:9dbcdb425553bae1ac5d947147bebbd630d91bbfc7788394d4c4f3a35682ab3a", size = 786816 },
+    { url = "https://files.pythonhosted.org/packages/e9/18/f3fc5b111d0bc51111beb2b049571974df952a5f7f466126823124b77368/openai-1.99.0-py3-none-any.whl", hash = "sha256:9d762c299eba9b0b3a55c3905e8457520e73a7601a258b763aa046475fac2b98", size = 767800 },
 ]
 
 [[package]]

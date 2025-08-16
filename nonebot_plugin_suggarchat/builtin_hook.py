@@ -8,9 +8,6 @@ from nonebot import get_bot
 from nonebot.adapters.onebot.v11 import Bot, MessageEvent
 from nonebot.exception import NoneBotException
 from nonebot.log import logger
-from openai.types.chat.chat_completion_message_function_tool_call import (
-    ChatCompletionMessageFunctionToolCall,
-)
 
 from .config import config_manager
 from .event import BeforeChatEvent, ChatEvent
@@ -41,7 +38,7 @@ ChatException: TypeAlias = (
 
 
 @prehook.handle()
-async def tools_callerdler(event: BeforeChatEvent) -> None:
+async def run_tools(event: BeforeChatEvent) -> None:
     config = config_manager.config
     if not config.llm_config.tools.enable_tools:
         return
@@ -68,11 +65,6 @@ async def tools_callerdler(event: BeforeChatEvent) -> None:
             if tool_calls := response_msg.tool_calls:
                 msg_list.append(Message.model_validate(dict(response_msg)))
                 for tool_call in tool_calls:
-                    if not isinstance(tool_call, ChatCompletionMessageFunctionToolCall):
-                        logger.opt(exception=True, colors=True).error(
-                            "ChatHook中遇到了未定义的tool_call"
-                        )
-                        continue
                     function_name = tool_call.function.name
                     function_args: dict = json.loads(tool_call.function.arguments)
                     logger.debug(f"函数参数为{tool_call.function.arguments}")

@@ -35,7 +35,7 @@ base_matcher.on_notice(
 base_matcher.on_notice(priority=5, block=False).append_handler(recall)
 
 base_matcher.on_message(
-    block=False, priority=11, rule=Rule(should_respond_to_message)
+    block=False, priority=11, rule=Rule(should_respond_to_message, is_bot_enabled)
 ).append_handler(chat)
 
 base_matcher.on_command(
@@ -44,17 +44,17 @@ base_matcher.on_command(
     block=True,
 ).append_handler(prompt)
 base_matcher.on_command(
-    "presets", priority=10, block=True, rule=Rule(is_bot_admin)
+    "presets", priority=10, block=True, permission=is_bot_admin
 ).append_handler(presets)
 base_matcher.on_command(
     "set_preset",
     aliases={"设置预设", "设置模型预设"},
     priority=10,
     block=True,
-    rule=is_bot_admin,
+    permission=is_bot_admin,
 ).append_handler(set_preset)
 base_matcher.on_command(
-    "debug", priority=10, block=True, rule=Rule(is_bot_admin)
+    "debug", priority=10, block=True, permission=is_bot_admin
 ).append_handler(debug_switchs)
 base_matcher.on_command(
     "autochat",
@@ -63,7 +63,7 @@ base_matcher.on_command(
     block=True,
 ).append_handler(switch)
 base_matcher.on_command(
-    "choose_prompt", priority=10, block=True, rule=Rule(is_bot_admin)
+    "choose_prompt", priority=10, block=True, permission=is_bot_admin
 ).append_handler(choose_prompt)
 
 base_matcher.on_command("sessions", priority=10, block=True).append_handler(sessions)

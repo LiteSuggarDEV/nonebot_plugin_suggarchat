@@ -159,7 +159,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
 
         # 写入记忆数据
         data.usage += 1
-        await data.save(event)
+        await data.save(event, raise_err=True)
 
     async def handle_private_message(
         event: PrivateMessageEvent,
@@ -249,7 +249,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
 
         # 写入记忆数据
         data.usage += 1
-        await data.save(event)
+        await data.save(event, raise_err=True)
 
     async def manage_sessions(
         event: GroupMessageEvent | PrivateMessageEvent,
@@ -289,7 +289,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                     data.memory.messages = []
                     timestamp = data.timestamp
                     data.timestamp = time_now
-                    await data.save(event)
+                    await data.save(event, raise_err=True)
                     if not (
                         (time_now - timestamp)
                         > float(
@@ -316,7 +316,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                     data.memory.messages = data.sessions[-1].messages
                     data.sessions.pop()
                     await matcher.send("让我们继续聊天吧～")
-                    await data.save(event)
+                    await data.save(event, raise_err=True)
                     raise CancelException()
 
             finally:

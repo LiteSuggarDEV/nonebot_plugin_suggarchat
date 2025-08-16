@@ -15,12 +15,9 @@ async def recall(bot: Bot, event: GroupRecallNoticeEvent, matcher: Matcher):
     # 检查是否允许在删除自身消息后回复，不允许则返回
     if not config_manager.config.extended.say_after_self_msg_be_deleted:
         return
-    # 判断是否为机器人删除了自己的消息
     if event.user_id == event.self_id:
-        # 如果操作者也是机器人自己，则不回复
         if event.operator_id == event.self_id:
             return
-        # 随机选择配置中的回复内容并发送
         recallmsg = config_manager.config.extended.after_deleted_say_what
         await matcher.send(random.choice(recallmsg))
         return
