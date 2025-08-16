@@ -95,7 +95,7 @@ async def get_or_create_data(
         if not is_group:
             return memory
         stmt = select(GroupConfig).where(GroupConfig.group_id == ins_id)
-        stmt = stmt if not for_update else stmt.with_for_update()
+        stmt = stmt.with_for_update() if for_update else stmt
         result = await session.execute(stmt)
         if not (group_config := result.scalar()):
             group_config = GroupConfig(group_id=ins_id)
