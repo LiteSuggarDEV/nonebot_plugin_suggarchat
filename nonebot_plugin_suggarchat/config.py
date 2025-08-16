@@ -8,10 +8,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+import aiofiles
 import nonebot_plugin_localstore as store
 import tomli
 import tomli_w
-from aiofiles import open
 from nonebot import get_driver, logger
 from pydantic import BaseModel
 from watchfiles import awatch
@@ -22,7 +22,6 @@ __kernel_version__ = "unknow"
 
 # 配置目录
 CONFIG_DIR: Path = store.get_plugin_config_dir()
-DATA_DIR: Path = store.get_plugin_data_dir()
 driver = get_driver()
 nb_config = driver.config
 
@@ -88,9 +87,7 @@ class ModelPreset(BaseModel):
         return cls()  # 返回默认值
 
     def save(self, path: Path):
-        with path.open(
-            "w",
-        ) as f:
+        with path.open("w", encoding="u8") as f:
             json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)
 
 
@@ -265,8 +262,8 @@ class Config(BaseModel):
         """从 TOML 文件加载配置"""
         if not path.exists():
             return cls()
-        with path.open("rb") as f:
-            data: dict[str, Any] = tomli.load(f)
+        with open(str(path), encoding="u8") as f:
+            data: dict[str, Any] = tomli.loads(f.read())
         return cls.model_validate(data)
 
     def validate_value(self):
@@ -331,11 +328,8 @@ class Prompts:
 @dataclass
 class ConfigManager:
     config_dir: Path = CONFIG_DIR
-    data_dir: Path = DATA_DIR
     _initialized = False
 
-    group_memory: Path = data_dir / "group"
-    private_memory: Path = data_dir / "private"
     toml_config: Path = config_dir / "config.toml"
 
     private_prompts: Path = config_dir / "private_prompts"
@@ -359,11 +353,7 @@ class ConfigManager:
         """_初始化配置目录_"""
         logger.info("正在初始化存储目录...")
         logger.debug(f"配置目录: {self.config_dir}")
-        logger.debug(f"数据目录：{self.data_dir}")
         os.makedirs(self.config_dir, exist_ok=True)
-        os.makedirs(self.data_dir, exist_ok=True)
-        os.makedirs(self.group_memory, exist_ok=True)
-        os.makedirs(self.private_memory, exist_ok=True)
         os.makedirs(self.private_prompts, exist_ok=True)
         os.makedirs(self.group_prompts, exist_ok=True)
         os.makedirs(self.custom_models_dir, exist_ok=True)
@@ -475,11 +465,11 @@ class ConfigManager:
             return self.prompts
         self.prompts = Prompts()
         for file in self.private_prompts.glob("*.txt"):
-            async with open(str(file), encoding="u8") as f:
+            async with aiofiles.open(str(file)) as f:
                 prompt = await f.read()
             self.prompts.private.append(Prompt(prompt, file.stem))
         for file in self.group_prompts.glob("*.txt"):
-            async with open(str(file), encoding="u8") as f:
+            async with aiofiles.open(str(file)) as f:
                 prompt = await f.read()
             self.prompts.group.append(Prompt(prompt, file.stem))
         if not self.prompts.private:

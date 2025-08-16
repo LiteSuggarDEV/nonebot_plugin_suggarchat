@@ -182,3 +182,4 @@ bot.py
 .vscode/settings.json
 pdm.lock
 Pipfile
+/migrations/*

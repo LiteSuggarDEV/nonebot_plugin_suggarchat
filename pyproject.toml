@@ -1,6 +1,6 @@
 [project]
 name = "nonebot_plugin_suggarchat"
-version = "3.3.1.1"
+version = "3.4.0.dev1"
 description = "SuggarChat chat framework"
 authors = [{ name = "LiteSuggarDEV", email = "windowserror@163.com" }]
 dependencies = [
@@ -19,6 +19,7 @@ dependencies = [
     "aiofiles>=24.1.0",
     "importlib>=1.0.4",
     "watchfiles>=1.1.0",
+    "nonebot-plugin-orm>=0.8.2",
 ]
 requires-python = ">=3.10, <4.0"
 readme = "README.md"
@@ -36,7 +37,12 @@ full = ["nonebot_plugin_suggarex_cf>=2.0.0"]
 "Issue Tracker" = "https://github.com/LiteSuggarDEV/nonebot_plugin_suggarchat/issues"
 
 [tool.uv]
-dev-dependencies = ["ruff>=0.12.8", "nonebot-plugin-suggarex-cf>=2.0.0"]
+dev-dependencies = [
+    "ruff>=0.12.8",
+    "nonebot-plugin-suggarex-cf>=2.0.0",
+    "nonebot-plugin-orm[default]>=0.8.2",
+    "pip>=25.2",
+]
 
 [tool.ruff]
 line-length = 88
@@ -71,7 +77,7 @@ ignore = [
 typeCheckingMode = "standard"
 
 [tool.nonebot]
-plugins = ["nonebot_plugin_suggarchat"]
+plugins = ["nonebot_plugin_suggarchat", "nonebot_plugin_localstore"]
 adapters = [
     { name = "OneBot V11", module_name = "nonebot.adapters.onebot.v11" },
 ]

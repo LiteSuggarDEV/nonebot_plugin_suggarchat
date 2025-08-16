@@ -19,8 +19,11 @@ from .utils.memory import Message, get_memory_data
 nb_config = get_driver().config
 
 
-async def is_bot_enabled() -> bool:
-    return config_manager.config.enable
+async def is_bot_enabled(event: Event) -> bool:
+    data = await get_memory_data(event)
+    return config_manager.config.enable and (
+        data.enable or not hasattr(event, "group_id")
+    )
 
 
 async def is_group_admin(event: GroupMessageEvent, bot: Bot) -> bool:

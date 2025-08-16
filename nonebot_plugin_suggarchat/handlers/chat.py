@@ -75,10 +75,6 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         if not config_manager.config.function.enable_group_chat:
             matcher.skip()
 
-        if not data.enable:
-            await matcher.send("聊天没有启用")
-            return
-
         # 管理会话上下文
         await manage_sessions(event, data, chat_manager.session_clear_group)
 

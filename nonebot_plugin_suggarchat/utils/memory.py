@@ -4,23 +4,18 @@ import json
 import time
 import typing
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Literal, overload
 
-import aiofiles
 from nonebot import logger
 from nonebot.adapters.onebot.v11 import (
     Event,
-    GroupMessageEvent,
-    PokeNotifyEvent,
-    PrivateMessageEvent,
 )
+from nonebot_plugin_orm import AsyncSession, get_session
 from pydantic import BaseModel as Model
 from pydantic import Field
 
 from ..chatmanager import chat_manager
-from ..config import config_manager
-from .lock import rw_lock
+from .sql_models import get_or_create_data
 
 
 class BaseModel(Model):
@@ -71,16 +66,18 @@ class Memory(BaseModel):
 class MemoryModel(BaseModel, extra="allow"):
     enable: bool = Field(default=True, description="是否启用")
     memory: Memory = Field(default=Memory(), description="记忆")
-    full: bool = Field(default=False, description="是否启用Fullmode")
     sessions: list[Memory] = Field(default_factory=list, description="会话")
     timestamp: float = Field(default=time.time(), description="时间戳")
     fake_people: bool = Field(default=False, description="是否启用假人")
     prompt: str = Field(default="", description="用户自定义提示词")
     usage: int = Field(default=0, description="请求次数")
 
-    async def save(self, event: Event) -> None:
+    async def save(self, event: Event, session: AsyncSession | None = None) -> None:
         """保存当前记忆数据到文件"""
-        await write_memory_data(event, self)
+        if session is None:
+            session = get_session()
+
+        await write_memory_data(event, self, session)
 
 
 @overload
@@ -102,100 +99,103 @@ async def get_memory_data(
     group_id: int | None = None,
 ) -> MemoryModel:
     """获取事件对应的记忆数据，如果不存在则创建初始数据"""
-    if event:
-        lock = rw_lock(event)
-    elif user_id:
-        lock = rw_lock(user_id=user_id)
-    elif group_id:
-        lock = rw_lock(group_id=group_id)
-    else:
-        raise ValueError("event or user_id or group_id must be provided")
-    async with lock:
-        private_memory = config_manager.private_memory
-        group_memory = config_manager.group_memory
-        conf_path: None | Path = None
-        Path.mkdir(private_memory, exist_ok=True)
-        Path.mkdir(group_memory, exist_ok=True)
-
-        if group_id := (getattr(event, "group_id", None) or group_id):
-            if chat_manager.debug:
-                logger.debug(f"获取Group{group_id} 的记忆数据")
-            group_id = typing.cast(int, group_id)
-            conf_path = Path(group_memory / f"{group_id}.json")
-            if not conf_path.exists():
-                async with aiofiles.open(
-                    str(conf_path),
-                    "w",
-                    encoding="u8",
-                ) as f:
-                    await f.write(MemoryModel().model_dump_json())
-        else:
-            user_id = getattr(event, "user_id", user_id)
-            if chat_manager.debug:
-                logger.debug(f"获取用户{user_id}的记忆数据")
-            conf_path = Path(private_memory / f"{user_id}.json")
-            if not conf_path.exists():
-                async with aiofiles.open(
-                    str(conf_path),
-                    "w",
-                    encoding="u8",
-                ) as f:
-                    await f.write(MemoryModel().model_dump_json())
-        async with aiofiles.open(str(conf_path), encoding="u8") as f:
-            conf = MemoryModel(**json.loads(await f.read()))
-            if chat_manager.debug:
-                logger.debug(f"读取到记忆数据{conf}")
-            if (
-                not datetime.fromtimestamp(conf.timestamp).date().isoformat()
-                == datetime.now().date().isoformat()
-            ):
-                conf.usage = 0
-                conf.timestamp = int(datetime.now().timestamp())
-                if event:
-                    await conf.save(event)
-            return conf
-
-
-async def write_memory_data(event: Event, data: MemoryModel) -> None:
-    """将记忆数据写入对应的文件"""
-    async with rw_lock(event):
+    is_group = False
+    if ins_id := (getattr(event, "group_id", None) or group_id):
         if chat_manager.debug:
-            logger.debug(f"写入记忆数据{data.model_dump_json()}")
-            logger.debug(f"事件：{type(event)}")
-        group_memory = config_manager.group_memory
-        private_memory = config_manager.private_memory
-        conf_path = None
-        if isinstance(event, GroupMessageEvent):
-            group_id = event.group_id
-            conf_path = Path(group_memory / f"{group_id}.json")
-        elif isinstance(event, PrivateMessageEvent):
-            user_id = event.user_id
-            conf_path = Path(private_memory / f"{user_id}.json")
-        elif isinstance(event, PokeNotifyEvent):
-            if event.group_id:
-                group_id = event.group_id
-                conf_path = Path(group_memory / f"{group_id}.json")
-                if not conf_path.exists():
-                    async with aiofiles.open(
-                        str(conf_path),
-                        "w",
-                        encoding="u8",
-                    ) as f:
-                        await f.write(MemoryModel().model_dump_json())
-            else:
-                user_id = event.user_id
-                conf_path = Path(private_memory / f"{user_id}.json")
-                if not conf_path.exists():
-                    async with aiofiles.open(
-                        str(conf_path),
-                        "w",
-                        encoding="u8",
-                    ) as f:
-                        await f.write(MemoryModel().model_dump_json())
-        assert conf_path is not None
-        async with aiofiles.open(
-            str(conf_path),
-            "w",
-            encoding="u8",
-        ) as f:
-            await f.write(str(data.model_dump_json()))
+            logger.debug(f"获取Group{group_id} 的记忆数据")
+        ins_id = typing.cast(int, group_id)
+        is_group = True
+    else:
+        ins_id = typing.cast(int, event.get_user_id()) if event else user_id
+        assert ins_id is not None, "User id is None!"
+        if chat_manager.debug:
+            logger.debug(f"获取用户{user_id}的记忆数据")
+    async with get_session() as session:
+        group_conf = None
+        if is_group:
+            group_conf, memory = await get_or_create_data(
+                session=session,
+                ins_id=ins_id,
+                is_group=is_group,
+            )
+
+            session.add(group_conf)
+
+        else:
+            memory = await get_or_create_data(session=session, ins_id=ins_id)
+
+        session.add(memory)
+        messages = [
+            (
+                Message.model_validate(i)
+                if i["role"] != "tool"
+                else ToolResult.model_validate(i)
+            )
+            for i in json.loads(memory.messages_json)
+        ]
+        c_memory = Memory(messages=messages, time=memory.time.timestamp())
+
+        sessions = [Memory.model_validate(i) for i in json.loads(memory.sessions_json)]
+        conf = MemoryModel(
+            memory=c_memory,
+            sessions=sessions,
+            usage=memory.usage_count,
+            timestamp=memory.time.timestamp(),
+        )
+        if group_conf:
+            conf.enable = group_conf.enable
+            conf.fake_people = group_conf.fake_people
+            conf.prompt = group_conf.prompt
+        if (
+            not datetime.fromtimestamp(conf.timestamp).date().isoformat()
+            == datetime.now().date().isoformat()
+        ):
+            conf.usage = 0
+            conf.timestamp = int(datetime.now().timestamp())
+            if event:
+                await conf.save(event, session)
+    if chat_manager.debug:
+        logger.debug(f"读取到记忆数据{conf}")
+
+    return conf
+
+
+async def write_memory_data(
+    event: Event, data: MemoryModel, session: AsyncSession
+) -> None:
+    """将记忆数据写入对应的文件"""
+    if chat_manager.debug:
+        logger.debug(f"写入记忆数据{data.model_dump_json()}")
+        logger.debug(f"事件：{type(event)}")
+    is_group = hasattr(event, "group_id")
+    ins_id = int(getattr(event, "group_id") if is_group else event.get_user_id())
+    async with session.begin():
+        group_conf = None
+        if is_group:
+            group_conf, memory = await get_or_create_data(
+                session=session,
+                ins_id=ins_id,
+                is_group=is_group,
+                for_update=True,
+            )
+
+            session.add(group_conf)
+
+        else:
+            memory = await get_or_create_data(
+                session=session,
+                ins_id=ins_id,
+                for_update=True,
+            )
+        session.add(memory)
+        memory.messages_json = data.memory.model_dump_json()
+        memory.sessions_json = json.dumps([s.model_dump() for s in data.sessions])
+        memory.time = datetime.fromtimestamp(data.timestamp)
+        memory.usage_count = data.usage
+
+        if group_conf:
+            group_conf.enable = data.enable
+            group_conf.prompt = data.prompt
+            group_conf.fake_people = data.fake_people
+            group_conf.last_updated = datetime.now()
+        await session.commit()

@@ -1,6 +1,7 @@
 from nonebot.plugin import PluginMetadata, require
 
 require("nonebot_plugin_localstore")
+require("nonebot_plugin_orm")
 
 from . import builtin_hook, config, matcher_manager, preprocess
 
