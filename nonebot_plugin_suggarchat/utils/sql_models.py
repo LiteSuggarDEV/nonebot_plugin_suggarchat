@@ -85,7 +85,7 @@ async def get_or_create_data(
         stmt = select(Memory).where(
             Memory.ins_id == ins_id, Memory.is_group == is_group
         )
-        stmt = stmt if not for_update else stmt.with_for_update()
+        stmt = stmt.with_for_update() if for_update else stmt
         result = await session.execute(stmt)
         if not (memory := result.scalar()):
             memory = Memory(ins_id=ins_id, is_group=is_group)
