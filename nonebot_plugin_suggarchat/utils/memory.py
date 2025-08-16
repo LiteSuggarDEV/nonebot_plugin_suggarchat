@@ -2,65 +2,26 @@ from __future__ import annotations
 
 import json
 import time
-import typing
 from datetime import datetime
-from typing import Any, Literal, overload
+from typing import overload
 
 from nonebot import logger
 from nonebot.adapters.onebot.v11 import (
     Event,
 )
 from nonebot_plugin_orm import AsyncSession, get_session
-from pydantic import BaseModel as Model
 from pydantic import Field
 
 from ..chatmanager import chat_manager
-from .sql_models import get_or_create_data
-
-
-class BaseModel(Model):
-    def __str__(self) -> str:
-        return json.dumps(self.model_dump(), ensure_ascii=True)
-
-    def __repr__(self) -> str:
-        return self.__str__()
-
-    def __getitem__(self, key: str) -> Any:
-        return self.model_dump()[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.__setattr__(key, value)
-
-
-class ImageUrl(BaseModel):
-    url: str = Field(..., description="图片URL")
-
-
-class ImageContent(BaseModel):
-    type: Literal["image_url"] = "image_url"
-    image_url: ImageUrl = Field(..., description="图片URL")
-
-
-class TextContent(BaseModel):
-    type: Literal["text"] = "text"
-    text: str = Field(..., description="文本内容")
-
-
-class Message(BaseModel):
-    role: Literal["user", "assistant", "system"] = Field(..., description="角色")
-    content: str | list[TextContent | ImageContent] = Field(..., description="内容")
-
-
-class ToolResult(BaseModel):
-    role: Literal["tool"] = Field(default="tool", description="角色")
-    name: str = Field(..., description="工具名称")
-    content: str = Field(..., description="工具返回内容")
-    tool_call_id: str = Field(..., description="工具调用ID")
-
-
-class Memory(BaseModel):
-    messages: list[Message | ToolResult] = Field(default_factory=list)
-    time: float = Field(default_factory=time.time, description="时间戳")
+from .models import (
+    BaseModel,
+    Message,
+    ToolResult,
+    get_or_create_data,
+)
+from .models import (
+    MemoryModel as Memory,
+)
 
 
 class MemoryModel(BaseModel, extra="allow"):
@@ -72,12 +33,18 @@ class MemoryModel(BaseModel, extra="allow"):
     prompt: str = Field(default="", description="用户自定义提示词")
     usage: int = Field(default=0, description="请求次数")
 
-    async def save(self, event: Event, session: AsyncSession | None = None) -> None:
+    async def save(
+        self,
+        event: Event,
+        *,
+        raise_err: bool = True,
+    ) -> None:
         """保存当前记忆数据到文件"""
-        if session is None:
-            session = get_session()
 
-        await write_memory_data(event, self, session)
+        session = get_session()
+
+        async with session:
+            await write_memory_data(event, self, session, raise_err)
 
 
 @overload
@@ -99,17 +66,18 @@ async def get_memory_data(
     group_id: int | None = None,
 ) -> MemoryModel:
     """获取事件对应的记忆数据，如果不存在则创建初始数据"""
+
     is_group = False
     if ins_id := (getattr(event, "group_id", None) or group_id):
+        ins_id = int(ins_id)
         if chat_manager.debug:
-            logger.debug(f"获取Group{group_id} 的记忆数据")
-        ins_id = typing.cast(int, group_id)
+            logger.debug(f"获取Group{ins_id} 的记忆数据")
         is_group = True
     else:
-        ins_id = typing.cast(int, event.get_user_id()) if event else user_id
-        assert ins_id is not None, "User id is None!"
+        ins_id = int(event.get_user_id()) if event else user_id
         if chat_manager.debug:
-            logger.debug(f"获取用户{user_id}的记忆数据")
+            logger.debug(f"获取用户{ins_id}的记忆数据")
+    assert ins_id is not None, "Ins_id is None!"
     async with get_session() as session:
         group_conf = None
         if is_group:
@@ -125,17 +93,20 @@ async def get_memory_data(
             memory = await get_or_create_data(session=session, ins_id=ins_id)
 
         session.add(memory)
+        await session.refresh(memory)
+        memory_json_text = memory.memory_json
+        sessions_json = memory.sessions_json
         messages = [
             (
                 Message.model_validate(i)
                 if i["role"] != "tool"
                 else ToolResult.model_validate(i)
             )
-            for i in json.loads(memory.messages_json)
+            for i in (json.loads(memory_json_text))["messages"]
         ]
         c_memory = Memory(messages=messages, time=memory.time.timestamp())
 
-        sessions = [Memory.model_validate(i) for i in json.loads(memory.sessions_json)]
+        sessions = [Memory.model_validate(i) for i in json.loads(sessions_json)]
         conf = MemoryModel(
             memory=c_memory,
             sessions=sessions,
@@ -153,7 +124,7 @@ async def get_memory_data(
             conf.usage = 0
             conf.timestamp = int(datetime.now().timestamp())
             if event:
-                await conf.save(event, session)
+                await conf.save(event)
     if chat_manager.debug:
         logger.debug(f"读取到记忆数据{conf}")
 
@@ -161,41 +132,53 @@ async def get_memory_data(
 
 
 async def write_memory_data(
-    event: Event, data: MemoryModel, session: AsyncSession
+    event: Event,
+    data: MemoryModel,
+    session: AsyncSession,
+    raise_err: bool,
 ) -> None:
     """将记忆数据写入对应的文件"""
-    if chat_manager.debug:
-        logger.debug(f"写入记忆数据{data.model_dump_json()}")
-        logger.debug(f"事件：{type(event)}")
-    is_group = hasattr(event, "group_id")
-    ins_id = int(getattr(event, "group_id") if is_group else event.get_user_id())
-    async with session.begin():
-        group_conf = None
-        if is_group:
-            group_conf, memory = await get_or_create_data(
-                session=session,
-                ins_id=ins_id,
-                is_group=is_group,
-                for_update=True,
+    async with session:
+        savepoint = session.begin_nested()
+        try:
+            if chat_manager.debug:
+                logger.debug(f"写入记忆数据{data.model_dump_json()}")
+                logger.debug(f"事件：{type(event)}")
+            is_group = hasattr(event, "group_id")
+            ins_id = int(
+                getattr(event, "group_id") if is_group else event.get_user_id()
             )
 
-            session.add(group_conf)
+            group_conf = None
+            if is_group:
+                group_conf, memory = await get_or_create_data(
+                    session=session,
+                    ins_id=ins_id,
+                    is_group=is_group,
+                    for_update=True,
+                )
 
-        else:
-            memory = await get_or_create_data(
-                session=session,
-                ins_id=ins_id,
-                for_update=True,
-            )
-        session.add(memory)
-        memory.messages_json = data.memory.model_dump_json()
-        memory.sessions_json = json.dumps([s.model_dump() for s in data.sessions])
-        memory.time = datetime.fromtimestamp(data.timestamp)
-        memory.usage_count = data.usage
+                session.add(group_conf)
 
-        if group_conf:
-            group_conf.enable = data.enable
-            group_conf.prompt = data.prompt
-            group_conf.fake_people = data.fake_people
-            group_conf.last_updated = datetime.now()
-        await session.commit()
+            else:
+                memory = await get_or_create_data(
+                    session=session,
+                    ins_id=ins_id,
+                    for_update=True,
+                )
+            session.add(memory)
+            memory.memory_json = data.memory.model_dump_json()
+            memory.sessions_json = json.dumps([s.model_dump() for s in data.sessions])
+            memory.time = datetime.fromtimestamp(data.timestamp)
+            memory.usage_count = data.usage
+            if group_conf:
+                group_conf.enable = data.enable
+                group_conf.prompt = data.prompt
+                group_conf.fake_people = data.fake_people
+                group_conf.last_updated = datetime.now()
+            await session.commit()
+        except Exception as e:
+            await savepoint.rollback()
+            logger.opt(exception=e, colors=True).error(f"写入记忆数据时出错: {e}")
+            if raise_err:
+                raise e

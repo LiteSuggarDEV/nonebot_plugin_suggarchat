@@ -2,15 +2,12 @@ from nonebot.adapters.onebot.v11 import Bot, GroupMessageEvent, Message
 from nonebot.matcher import Matcher
 from nonebot.params import CommandArg
 
-from ..check_rule import is_group_admin
 from ..utils.memory import get_memory_data
 
 
 async def switch(
     event: GroupMessageEvent, matcher: Matcher, bot: Bot, args: Message = CommandArg()
 ):
-    if not await is_group_admin(event, bot):
-        await matcher.finish("权限不足")
     arg = args.extract_plain_text().strip()
     data = await get_memory_data(event)
     if arg in ("开启", "on", "启用", "enable"):

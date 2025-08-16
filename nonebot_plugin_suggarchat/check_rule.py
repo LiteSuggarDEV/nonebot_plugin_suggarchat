@@ -1,6 +1,7 @@
 import random
 import time
 
+import nonebot
 from nonebot import get_driver, logger
 from nonebot.adapters.onebot.v11 import Bot
 from nonebot.adapters.onebot.v11.event import (
@@ -20,14 +21,18 @@ nb_config = get_driver().config
 
 
 async def is_bot_enabled(event: Event) -> bool:
-    data = await get_memory_data(event)
-    return config_manager.config.enable and (
-        data.enable or not hasattr(event, "group_id")
-    )
+    if not config_manager.config.enable:
+        return False
+    bots = set(nonebot.get_bots().keys())
+    if event.get_user_id() in bots:  # 多实例下防止冲突
+        return False
+    if hasattr(event, "group_id"):
+        data = await get_memory_data(event)
+        return data.enable
+    return True
 
 
 async def is_group_admin(event: GroupMessageEvent, bot: Bot) -> bool:
-    is_admin: bool = False
     try:
         role: str = (
             (
@@ -38,11 +43,13 @@ async def is_group_admin(event: GroupMessageEvent, bot: Bot) -> bool:
             if not event.sender.role
             else event.sender.role
         )
-        if role != "member" or event.user_id in config_manager.config.admin.admins:
-            is_admin = True
+        if role != "member" :
+            return True
+        if  await is_bot_admin(event):
+            return True
     except Exception:
         logger.warning(f"获取群成员信息失败: {event.group_id} {event.user_id}")
-    return is_admin
+    return False
 
 
 async def is_bot_admin(event: Event) -> bool:

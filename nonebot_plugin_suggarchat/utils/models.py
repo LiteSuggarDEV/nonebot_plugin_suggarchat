@@ -1,7 +1,11 @@
+import json
+import time
 from datetime import datetime
-from typing import overload
+from typing import Any, Literal, overload
 
 from nonebot_plugin_orm import AsyncSession, Model
+from pydantic import BaseModel as B_Model
+from pydantic import Field
 from sqlalchemy import (
     Boolean,
     DateTime,
@@ -10,9 +14,62 @@ from sqlalchemy import (
     Integer,
     Text,
     UniqueConstraint,
+    insert,
     select,
 )
 from sqlalchemy.orm import Mapped, mapped_column
+
+from .lock import database_lock
+
+# Pydantic 模型
+
+
+class BaseModel(B_Model):
+    def __str__(self) -> str:
+        return json.dumps(self.model_dump(), ensure_ascii=True)
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+    def __getitem__(self, key: str) -> Any:
+        return self.model_dump()[key]
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self.__setattr__(key, value)
+
+
+class ImageUrl(BaseModel):
+    url: str = Field(..., description="图片URL")
+
+
+class ImageContent(BaseModel):
+    type: Literal["image_url"] = "image_url"
+    image_url: ImageUrl = Field(..., description="图片URL")
+
+
+class TextContent(BaseModel):
+    type: Literal["text"] = "text"
+    text: str = Field(..., description="文本内容")
+
+
+class Message(BaseModel):
+    role: Literal["user", "assistant", "system"] = Field(..., description="角色")
+    content: str | list[TextContent | ImageContent] = Field(..., description="内容")
+
+
+class ToolResult(BaseModel):
+    role: Literal["tool"] = Field(default="tool", description="角色")
+    name: str = Field(..., description="工具名称")
+    content: str = Field(..., description="工具返回内容")
+    tool_call_id: str = Field(..., description="工具调用ID")
+
+
+class MemoryModel(BaseModel):
+    messages: list[Message | ToolResult] = Field(default_factory=list)
+    time: float = Field(default_factory=time.time, description="时间戳")
+
+
+# Sqlalchemy 模型
 
 
 class Memory(Model):
@@ -20,9 +77,9 @@ class Memory(Model):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     ins_id: Mapped[int] = mapped_column(Integer, nullable=False)
     is_group: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    messages_json: Mapped[str] = mapped_column(
+    memory_json: Mapped[str] = mapped_column(
         Text,
-        default="[]",
+        default=MemoryModel().model_dump_json(),
         nullable=False,
     )
     sessions_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
@@ -81,25 +138,32 @@ async def get_or_create_data(
     is_group: bool = False,
     for_update: bool = False,
 ) -> Memory | tuple[GroupConfig, Memory]:
-    async with session:
+    async with database_lock(ins_id, is_group):
         stmt = select(Memory).where(
             Memory.ins_id == ins_id, Memory.is_group == is_group
         )
         stmt = stmt.with_for_update() if for_update else stmt
         result = await session.execute(stmt)
-        if not (memory := result.scalar()):
-            memory = Memory(ins_id=ins_id, is_group=is_group)
-            session.add(memory)
+        if not (memory := result.scalar_one_or_none()):
+            stmt = insert(Memory).values(ins_id=ins_id, is_group=is_group)
+            await session.execute(stmt)
             await session.commit()
-            await session.refresh(memory)
+            stmt = select(Memory).where(
+                Memory.ins_id == ins_id, Memory.is_group == is_group
+            )
+            stmt = stmt.with_for_update() if for_update else stmt
+            memory = (await session.execute(stmt)).scalar_one()
+        session.add(memory)
         if not is_group:
             return memory
         stmt = select(GroupConfig).where(GroupConfig.group_id == ins_id)
         stmt = stmt.with_for_update() if for_update else stmt
         result = await session.execute(stmt)
-        if not (group_config := result.scalar()):
-            group_config = GroupConfig(group_id=ins_id)
-            session.add(group_config)
+        if not (group_config := result.scalar_one_or_none()):
+            stmt = insert(GroupConfig).values(group_id=ins_id)
+            await session.execute(stmt)
             await session.commit()
-            await session.refresh(group_config)
+            stmt = select(GroupConfig).where(GroupConfig.group_id == ins_id)
+            group_config = (await session.execute(stmt)).scalar_one()
+        session.add(group_config)
         return group_config, memory
