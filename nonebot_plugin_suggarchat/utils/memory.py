@@ -147,8 +147,8 @@ async def get_memory_data(
             conf.fake_people = group_conf.fake_people
             conf.prompt = group_conf.prompt
         if (
-            not datetime.fromtimestamp(conf.timestamp).date().isoformat()
-            == datetime.now().date().isoformat()
+            datetime.fromtimestamp(conf.timestamp).date().isoformat()
+            != datetime.now().date().isoformat()
         ):
             conf.usage = 0
             conf.timestamp = int(datetime.now().timestamp())
