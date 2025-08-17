@@ -33,9 +33,9 @@ async def usage_enough(event: Event) -> bool:
 
     # ### Starts of Global Insights ###
     global_insights = await InsightsModel.get()
-    if config.usage_limit.total_daily_limit != -1:
-        if global_insights.usage_count >= config.usage_limit.total_daily_limit:
-            return False
+    if config.usage_limit.total_daily_limit != -1 and global_insights.usage_count >= config.usage_limit.total_daily_limit:
+        return False
+
     if config.usage_limit.total_daily_token_limit != -1 and (
                 global_insights.token_input + global_insights.token_output
                 >= config.usage_limit.total_daily_token_limit
