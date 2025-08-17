@@ -145,7 +145,6 @@ async def write_memory_data(
 ) -> None:
     """将记忆数据写入对应的文件"""
     async with session:
-        savepoint = session.begin_nested()
         try:
             if chat_manager.debug:
                 logger.debug(f"写入记忆数据{data.model_dump_json()}")
@@ -186,7 +185,7 @@ async def write_memory_data(
                 group_conf.last_updated = datetime.now()
             await session.commit()
         except Exception as e:
-            await savepoint.rollback()
             logger.opt(exception=e, colors=True).error(f"写入记忆数据时出错: {e}")
+            await session.rollback()
             if raise_err:
                 raise e

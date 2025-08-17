@@ -14,6 +14,7 @@ from nonebot.adapters.onebot.v11 import (
     MessageSegment,
 )
 from nonebot.adapters.onebot.v11.event import (
+    Event,
     GroupMessageEvent,
     MessageEvent,
     PrivateMessageEvent,
@@ -21,6 +22,7 @@ from nonebot.adapters.onebot.v11.event import (
 )
 from nonebot.exception import NoneBotException
 from nonebot.matcher import Matcher
+from typing_extensions import override
 
 from ..chatmanager import SessionTemp, chat_manager
 from ..config import config_manager
@@ -46,9 +48,18 @@ from ..utils.memory import (
     ToolResult,
     get_memory_data,
 )
+from ..utils.models import InsightsModel
 from ..utils.tokenizer import hybrid_token_count
 
 command_prefix = get_driver().config.command_start or "/"
+
+
+class FakeEvent(Event):
+    user_id: int
+
+    @override
+    def get_user_id(self) -> str:
+        return str(self.user_id)
 
 
 async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
@@ -148,23 +159,6 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         )
         response = await process_chat(event, send_messages, tokens)
 
-        # 记录模型回复
-        data.memory.messages.append(
-            Message(
-                role="assistant",
-                content=response,
-            )
-        )
-
-        output_tokens = hybrid_token_count(
-            response, mode=config_manager.config.llm_config.tokens_count_mode
-        )
-
-        # 写入记忆数据
-        data.usage += 1
-        data.output_token_usage += output_tokens
-        data.input_token_usage += tokens
-        await data.save(event, raise_err=True)
         await send_response(event, response)
 
     async def handle_private_message(
@@ -243,23 +237,6 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             data, copy.deepcopy(config_manager.private_train)
         )
         response = await process_chat(event, send_messages, tokens)
-
-        # 记录模型回复
-        data.memory.messages.append(
-            Message(
-                content=response,
-                role="assistant",
-            )
-        )
-        output_tokens = hybrid_token_count(
-            response, mode=config_manager.config.llm_config.tokens_count_mode
-        )
-
-        # 写入记忆数据
-        data.usage += 1
-        data.output_token_usage += output_tokens
-        data.input_token_usage += tokens
-        await data.save(event, raise_err=True)
 
         await send_response(event, response)
 
@@ -497,6 +474,48 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             await config_manager.get_preset(config_manager.config.preset)
         ).thought_chain_model:
             response = remove_think_tag(response)
+
+        # 记录模型回复
+        data.memory.messages.append(
+            Message(
+                content=response,
+                role="assistant",
+            )
+        )
+
+        output_tokens = hybrid_token_count(
+            response, mode=config_manager.config.llm_config.tokens_count_mode
+        )
+        insights = await InsightsModel.get()
+
+        # 写入全局统计
+        insights.usage_count += 1
+        insights.token_output += output_tokens
+        insights.token_input += tokens
+        await insights.save()
+
+        # 写入记忆数据
+        for d, ev in (
+            (
+                (data, event),
+                (
+                    await get_memory_data(user_id=event.user_id),
+                    FakeEvent(
+                        time=0,
+                        self_id=0,
+                        post_type="",
+                        user_id=event.user_id,
+                    ),
+                ),
+            )
+            if hasattr(event, "group_id")
+            else ((data, event),)
+        ):
+            d.usage += 1  # 增加使用次数
+            d.output_token_usage += output_tokens
+            d.input_token_usage += tokens
+            await d.save(ev)
+
         return response
 
     async def send_response(event: MessageEvent, response: str):
@@ -547,8 +566,10 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
 
     try:
         data = await get_memory_data(event)
-        if not await usage_enough(event):
-            await matcher.finish("今天额度已经用完了～")
+        if not await usage_enough(event) or not await usage_enough(
+            FakeEvent(time=0, self_id=0, post_type="", user_id=event.user_id)
+        ):
+            await matcher.finish("今天的聊天额度已经用完了～")
         if isinstance(event, GroupMessageEvent):
             async with get_group_lock(event.group_id):
                 await handle_group_message(

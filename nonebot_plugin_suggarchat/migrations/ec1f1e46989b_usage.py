@@ -18,6 +18,7 @@ down_revision: str | Sequence[str] | None = "1d99948099bb"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+
 def upgrade(name: str = "") -> None:
     if name:
         return

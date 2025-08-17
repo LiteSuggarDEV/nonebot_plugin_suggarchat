@@ -20,6 +20,9 @@ from ..utils.functions import (
 from ..utils.libchat import get_chat, usage_enough
 from ..utils.lock import get_group_lock, get_private_lock
 from ..utils.memory import get_memory_data
+from ..utils.models import InsightsModel
+from ..utils.tokenizer import hybrid_token_count
+from .chat import FakeEvent
 
 
 async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
@@ -119,9 +122,40 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
 
         # 获取聊天模型的回复
         response = await get_chat(send_messages)
+        output_tokens = hybrid_token_count(
+            response, mode=config_manager.config.llm_config.tokens_count_mode
+        )
+        input_tokens = hybrid_token_count(
+            "".join([i["content"] for i in send_messages]),
+            mode=config_manager.config.llm_config.tokens_count_mode,
+        )
 
-        data.usage += 1  # 增加使用次数
-        await data.save(event)  # 保存数据
+        insights = await InsightsModel.get()
+
+        insights.usage_count += 1
+        insights.token_output += output_tokens
+        insights.token_input += input_tokens
+        for d, ev in (
+            (
+                (data, event),
+                (
+                    await get_memory_data(user_id=event.user_id),
+                    FakeEvent(
+                        time=0,
+                        self_id=0,
+                        post_type="",
+                        user_id=event.user_id,
+                    ),
+                ),
+            )
+            if getattr(event, "group_id", None) is not None
+            else ((data, event),)
+        ):
+            d.usage += 1  # 增加使用次数
+            d.output_token_usage += output_tokens
+            d.input_token_usage += input_tokens
+            await d.save(ev)
+        await insights.save()
 
         if config_manager.config.matcher_function:
             # 触发自定义事件后置处理
@@ -180,7 +214,9 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
         return
     data = await get_memory_data(event)  # 获取用户或群组相关数据
     try:
-        if not await usage_enough(event):  # 检查用户或群组使用次数是否超出限制
+        if not await usage_enough(event) or not await usage_enough(
+            FakeEvent(time=0, self_id=0, post_type="", user_id=event.user_id)
+        ):  # 检查用户或群组使用次数是否超出限制
             return
         if event.group_id is not None:  # 判断是群聊还是私聊
             async with get_group_lock(event.group_id):

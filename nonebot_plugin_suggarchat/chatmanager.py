@@ -37,6 +37,7 @@ class ChatManager:
         "/choose_prompt <group/private> <预设名称> 设置群聊/私聊的全局提示词预设\n"
     )
     menu_msg += "/fakepeople <on/off>模拟聊天"
+    menu_msg += "/insights [global] 获取当前群聊/私聊的用量，参数：global(可选)"
 
 
 chat_manager = ChatManager()
