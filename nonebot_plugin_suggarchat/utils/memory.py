@@ -126,6 +126,8 @@ async def get_memory_data(
             != datetime.now().date().isoformat()
         ):
             conf.usage = 0
+            conf.input_token_usage = 0
+            conf.output_token_usage = 0
             conf.timestamp = int(datetime.now().timestamp())
             if event:
                 await conf.save(event)
