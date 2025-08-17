@@ -566,8 +566,10 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
 
     try:
         data = await get_memory_data(event)
-        if not await usage_enough(event):
-            await matcher.finish("今天额度已经用完了～")
+        if not await usage_enough(event) or not await usage_enough(
+            FakeEvent(time=0, self_id=0, post_type="", user_id=event.user_id)
+        ):
+            await matcher.finish("今天的聊天额度已经用完了～")
         if isinstance(event, GroupMessageEvent):
             async with get_group_lock(event.group_id):
                 await handle_group_message(

@@ -214,7 +214,9 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
         return
     data = await get_memory_data(event)  # 获取用户或群组相关数据
     try:
-        if not await usage_enough(event):  # 检查用户或群组使用次数是否超出限制
+        if not await usage_enough(event) or not await usage_enough(
+            FakeEvent(time=0, self_id=0, post_type="", user_id=event.user_id)
+        ):  # 检查用户或群组使用次数是否超出限制
             return
         if event.group_id is not None:  # 判断是群聊还是私聊
             async with get_group_lock(event.group_id):
