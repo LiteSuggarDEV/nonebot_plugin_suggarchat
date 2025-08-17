@@ -16,6 +16,7 @@ from .handlers.del_memory import del_memory
 from .handlers.disable import disable
 from .handlers.enable import enable
 from .handlers.fakepeople_switch import switch
+from .handlers.insights import insights
 from .handlers.menus import menu
 from .handlers.poke_event import poke_event
 from .handlers.presets import presets
@@ -118,3 +119,10 @@ base_matcher.on_command(
     aliases={"chat_menu"},
     priority=10,
 ).append_handler(menu)
+
+base_matcher.on_command(
+    "insights",
+    aliases={"今日用量"},
+    block=True,
+    priority=10,
+).append_handler(insights)

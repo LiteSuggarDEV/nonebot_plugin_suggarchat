@@ -119,6 +119,7 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
 
         # 获取聊天模型的回复
         response = await get_chat(send_messages)
+
         data.usage += 1  # 增加使用次数
         await data.save(event)  # 保存数据
 

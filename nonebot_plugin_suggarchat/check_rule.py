@@ -43,9 +43,9 @@ async def is_group_admin(event: GroupMessageEvent, bot: Bot) -> bool:
             if not event.sender.role
             else event.sender.role
         )
-        if role != "member" :
+        if role != "member":
             return True
-        if  await is_bot_admin(event):
+        if await is_bot_admin(event):
             return True
     except Exception:
         logger.warning(f"获取群成员信息失败: {event.group_id} {event.user_id}")

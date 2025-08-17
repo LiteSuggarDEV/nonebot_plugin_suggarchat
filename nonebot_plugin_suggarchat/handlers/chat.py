@@ -155,11 +155,17 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                 content=response,
             )
         )
-        await send_response(event, response)
+
+        output_tokens = hybrid_token_count(
+            response, mode=config_manager.config.llm_config.tokens_count_mode
+        )
 
         # 写入记忆数据
         data.usage += 1
+        data.output_token_usage += output_tokens
+        data.input_token_usage += tokens
         await data.save(event, raise_err=True)
+        await send_response(event, response)
 
     async def handle_private_message(
         event: PrivateMessageEvent,
@@ -245,11 +251,17 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                 role="assistant",
             )
         )
-        await send_response(event, response)
+        output_tokens = hybrid_token_count(
+            response, mode=config_manager.config.llm_config.tokens_count_mode
+        )
 
         # 写入记忆数据
         data.usage += 1
+        data.output_token_usage += output_tokens
+        data.input_token_usage += tokens
         await data.save(event, raise_err=True)
+
+        await send_response(event, response)
 
     async def manage_sessions(
         event: GroupMessageEvent | PrivateMessageEvent,
@@ -470,7 +482,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             await MatcherManager.trigger_event(chat_event, event, bot)
             send_messages = chat_event.get_send_message()
 
-        response = await get_chat(send_messages, tokens=tokens)
+        response = await get_chat(send_messages)
 
         if config_manager.config.matcher_function:
             chat_event = ChatEvent(
