@@ -95,7 +95,9 @@ class InsightsModel(BaseModel):
                 if (
                     insights := (
                         await session.execute(
-                            select(InsightsModel).where(GlobalInsights.date == date_now)
+                            select(GlobalInsights).where(
+                                GlobalInsights.date == date_now
+                            )
                         )
                     ).scalar_one_or_none()
                 ) is None:
@@ -103,7 +105,9 @@ class InsightsModel(BaseModel):
                     await session.execute(stmt)
                     insights = (
                         await session.execute(
-                            select(InsightsModel).where(GlobalInsights.date == date_now)
+                            select(GlobalInsights).where(
+                                GlobalInsights.date == date_now
+                            )
                         )
                     ).scalar_one()
                 session.add(insights)

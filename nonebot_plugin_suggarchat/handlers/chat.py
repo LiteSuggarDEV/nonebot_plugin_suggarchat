@@ -14,6 +14,7 @@ from nonebot.adapters.onebot.v11 import (
     MessageSegment,
 )
 from nonebot.adapters.onebot.v11.event import (
+    Event,
     GroupMessageEvent,
     MessageEvent,
     PrivateMessageEvent,
@@ -21,6 +22,7 @@ from nonebot.adapters.onebot.v11.event import (
 )
 from nonebot.exception import NoneBotException
 from nonebot.matcher import Matcher
+from typing_extensions import override
 
 from ..chatmanager import SessionTemp, chat_manager
 from ..config import config_manager
@@ -50,6 +52,14 @@ from ..utils.models import InsightsModel
 from ..utils.tokenizer import hybrid_token_count
 
 command_prefix = get_driver().config.command_start or "/"
+
+
+class FakeEvent(Event):
+    user_id: int
+
+    @override
+    def get_user_id(self) -> str:
+        return str(self.user_id)
 
 
 async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
@@ -485,10 +495,26 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         await insights.save()
 
         # 写入记忆数据
-        data.usage += 1
-        data.output_token_usage += output_tokens
-        data.input_token_usage += tokens
-        await data.save(event, raise_err=True)
+        for d, ev in (
+            (
+                (data, event),
+                (
+                    await get_memory_data(user_id=event.user_id),
+                    FakeEvent(
+                        time=0,
+                        self_id=0,
+                        post_type="",
+                        user_id=event.user_id,
+                    ),
+                ),
+            )
+            if hasattr(event, "group_id")
+            else ((data, event),)
+        ):
+            d.usage += 1  # 增加使用次数
+            d.output_token_usage += output_tokens
+            d.input_token_usage += tokens
+            await d.save(ev)
 
         return response
 
