@@ -46,6 +46,7 @@ from ..utils.memory import (
     ToolResult,
     get_memory_data,
 )
+from ..utils.models import InsightsModel
 from ..utils.tokenizer import hybrid_token_count
 
 command_prefix = get_driver().config.command_start or "/"
@@ -148,23 +149,6 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         )
         response = await process_chat(event, send_messages, tokens)
 
-        # 记录模型回复
-        data.memory.messages.append(
-            Message(
-                role="assistant",
-                content=response,
-            )
-        )
-
-        output_tokens = hybrid_token_count(
-            response, mode=config_manager.config.llm_config.tokens_count_mode
-        )
-
-        # 写入记忆数据
-        data.usage += 1
-        data.output_token_usage += output_tokens
-        data.input_token_usage += tokens
-        await data.save(event, raise_err=True)
         await send_response(event, response)
 
     async def handle_private_message(
@@ -243,23 +227,6 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             data, copy.deepcopy(config_manager.private_train)
         )
         response = await process_chat(event, send_messages, tokens)
-
-        # 记录模型回复
-        data.memory.messages.append(
-            Message(
-                content=response,
-                role="assistant",
-            )
-        )
-        output_tokens = hybrid_token_count(
-            response, mode=config_manager.config.llm_config.tokens_count_mode
-        )
-
-        # 写入记忆数据
-        data.usage += 1
-        data.output_token_usage += output_tokens
-        data.input_token_usage += tokens
-        await data.save(event, raise_err=True)
 
         await send_response(event, response)
 
@@ -497,6 +464,32 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             await config_manager.get_preset(config_manager.config.preset)
         ).thought_chain_model:
             response = remove_think_tag(response)
+
+        # 记录模型回复
+        data.memory.messages.append(
+            Message(
+                content=response,
+                role="assistant",
+            )
+        )
+
+        output_tokens = hybrid_token_count(
+            response, mode=config_manager.config.llm_config.tokens_count_mode
+        )
+        insights = await InsightsModel.get()
+
+        # 写入全局统计
+        insights.usage_count += 1
+        insights.token_output += output_tokens
+        insights.token_input += tokens
+        await insights.save()
+
+        # 写入记忆数据
+        data.usage += 1
+        data.output_token_usage += output_tokens
+        data.input_token_usage += tokens
+        await data.save(event, raise_err=True)
+
         return response
 
     async def send_response(event: MessageEvent, response: str):

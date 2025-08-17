@@ -1,3 +1,4 @@
+import contextlib
 import random
 import time
 
@@ -23,9 +24,10 @@ nb_config = get_driver().config
 async def is_bot_enabled(event: Event) -> bool:
     if not config_manager.config.enable:
         return False
-    bots = set(nonebot.get_bots().keys())
-    if event.get_user_id() in bots:  # 多实例下防止冲突
-        return False
+    with contextlib.suppress(Exception):
+        bots = set(nonebot.get_bots().keys())
+        if event.get_user_id() in bots:  # 多实例下防止冲突
+            return False
     if hasattr(event, "group_id"):
         data = await get_memory_data(event)
         return data.enable

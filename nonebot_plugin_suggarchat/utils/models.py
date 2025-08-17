@@ -1,9 +1,9 @@
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Literal, overload
 
-from nonebot_plugin_orm import AsyncSession, Model
+from nonebot_plugin_orm import AsyncSession, Model, get_session
 from pydantic import BaseModel as B_Model
 from pydantic import Field
 from sqlalchemy import (
@@ -15,11 +15,16 @@ from sqlalchemy import (
     Integer,
     Text,
     UniqueConstraint,
+    delete,
     insert,
     select,
+    text,
+    update,
 )
 from sqlalchemy.orm import Mapped, mapped_column
+from typing_extensions import Self
 
+from ..config import config_manager
 from .lock import database_lock
 
 # Pydantic 模型
@@ -70,7 +75,112 @@ class MemoryModel(BaseModel):
     time: float = Field(default_factory=time.time, description="时间戳")
 
 
+class InsightsModel(BaseModel):
+    date: str = Field(
+        default_factory=lambda: datetime.now().strftime("%Y-%m-%d"), description="日期"
+    )
+    token_input: int = Field(..., description="输入token使用量")
+    token_output: int = Field(..., description="输出token使用量")
+    usage_count: int = Field(..., description="聊天请求次数")
+
+    @classmethod
+    async def get(cls) -> Self:
+        date_now = datetime.now().strftime("%Y-%m-%d")
+        async with database_lock(date_now):
+            async with get_session() as session:
+                await cls._delete_expired(
+                    days=config_manager.config.usage_limit.global_insights_expire_days,
+                    session=session,
+                )
+                if (
+                    insights := (
+                        await session.execute(
+                            select(InsightsModel).where(GlobalInsights.date == date_now)
+                        )
+                    ).scalar_one_or_none()
+                ) is None:
+                    stmt = insert(GlobalInsights).values(date=date_now)
+                    await session.execute(stmt)
+                    insights = (
+                        await session.execute(
+                            select(InsightsModel).where(GlobalInsights.date == date_now)
+                        )
+                    ).scalar_one()
+                session.add(insights)
+                instance = cls.model_validate(insights, from_attributes=True)
+            return instance
+
+    async def save(self):
+        """保存数据"""
+        async with database_lock(self.date):
+            async with get_session() as session:
+                await self._delete_expired(
+                    days=config_manager.config.usage_limit.global_insights_expire_days,
+                    session=session,
+                )
+                stmt = select(GlobalInsights).where(GlobalInsights.date == self.date)
+                if ((await session.execute(stmt)).scalar_one_or_none()) is None:
+                    stmt = insert(GlobalInsights).values(
+                        **{
+                            k: v
+                            for k, v in self.model_dump().items()
+                            if hasattr(GlobalInsights, k)
+                        }
+                    )
+                    await session.execute(stmt)
+                    await session.commit()
+                else:
+                    stmt = (
+                        update(GlobalInsights)
+                        .where(GlobalInsights.date == self.date)
+                        .values(
+                            **{
+                                k: v
+                                for k, v in self.model_dump().items()
+                                if hasattr(GlobalInsights, k)
+                            }
+                        )
+                    )
+                    await session.execute(stmt)
+                    await session.commit()
+
+    @staticmethod
+    async def _delete_expired(*, days: int, session: AsyncSession) -> int:
+        """
+        删除过期的记录
+
+        Args:
+            days: 保留天数，超过此天数的记录将被删除
+        """
+        # 计算截止日期
+        cutoff_date = datetime.now() - timedelta(days=days)
+
+        # 删除过期记录
+        stmt = delete(GlobalInsights).where(
+            GlobalInsights.date < cutoff_date.strftime("%Y-%m-%d")
+        )
+        result = await session.execute(stmt)
+        await session.commit()
+        return result.rowcount
+
+
 # Sqlalchemy 模型
+
+
+class GlobalInsights(Model):
+    __tablename__ = "suggarchat_global_insights"
+    date: Mapped[str] = mapped_column(
+        Text,
+        primary_key=True,
+        default=lambda: datetime.now().strftime("%Y-%m-%d"),
+    )
+    token_input: Mapped[int] = mapped_column(
+        BigInteger, default=0, server_default=text("0")
+    )
+    token_output: Mapped[int] = mapped_column(
+        BigInteger, default=0, server_default=text("0")
+    )
+    usage_count: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class Memory(Model):

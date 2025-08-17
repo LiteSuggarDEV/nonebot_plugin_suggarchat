@@ -15,10 +15,10 @@ from openai.types.chat.chat_completion_tool_choice_option_param import (
     ChatCompletionToolChoiceOptionParam,
 )
 
-from nonebot_plugin_suggarchat.check_rule import is_bot_admin
-
 from ..chatmanager import chat_manager
+from ..check_rule import is_bot_admin
 from ..config import config_manager
+from ..utils.models import InsightsModel
 from .functions import remove_think_tag
 from .memory import BaseModel, Message, ToolResult, get_memory_data
 from .protocol import AdapterManager, ModelAdapter
@@ -30,6 +30,21 @@ async def usage_enough(event: Event) -> bool:
         return True
     if await is_bot_admin(event):
         return True
+
+    # ### Starts of Global Insights ###
+    global_insights = await InsightsModel.get()
+    if config.usage_limit.total_daily_limit != -1:
+        if global_insights.usage_count >= config.usage_limit.total_daily_limit:
+            return False
+    if config.usage_limit.total_daily_token_limit != -1:
+        if (
+            global_insights.token_input + global_insights.token_output
+            >= config.usage_limit.total_daily_token_limit
+        ):
+            return False
+    # ### End of global insights ###
+
+    # ### User insights ###
     user_id = int(event.get_user_id())
     data = await get_memory_data(user_id=user_id)
     if (
@@ -43,6 +58,11 @@ async def usage_enough(event: Event) -> bool:
         >= config.usage_limit.user_daily_token_limit
     ):
         return False
+
+    # ### End of user check ###
+
+    # ### Start of group check ###
+
     if (gid := getattr(event, "group_id", None)) is not None:
         group_id = typing.cast(int, gid)
         data = await get_memory_data(group_id=group_id)
@@ -58,6 +78,8 @@ async def usage_enough(event: Event) -> bool:
             >= config.usage_limit.group_daily_token_limit
         ):
             return False
+
+    # ### End of group check ###
 
     return True
 
