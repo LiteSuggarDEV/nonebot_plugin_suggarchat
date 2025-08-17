@@ -30,5 +30,5 @@ async def insights(
             + f"\n\n{msg}"
         )
     await matcher.finish(
-        MessageSegment.at(event.user_id) + MessageSegment.text(" " + msg)
+        MessageSegment.at(event.user_id) + MessageSegment.text(f" {msg}")
     )
