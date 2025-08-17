@@ -224,8 +224,8 @@ class UsageLimitConfig(BaseModel):
     user_daily_limit: int = 100  # 每个用户每天的使用次数限制(-1为不限制)
     group_daily_token_limit: int = 200000  # 每个群每天使用的token限制(-1为不限制)
     user_daily_token_limit: int = 100000  # 每个用户每天使用的token限制(-1为不限制)
-    total_daily_limit: int = 1500  # 总使用次数限制(-1为不限制)
-    total_daily_token_limit: int = 1000000  # 总使用token限制(-1为不限制)
+    # total_daily_limit: int = 1500  # 总使用次数限制(-1为不限制)
+    # total_daily_token_limit: int = 1000000  # 总使用token限制(-1为不限制)
 
 
 class LLM_Config(BaseModel):
