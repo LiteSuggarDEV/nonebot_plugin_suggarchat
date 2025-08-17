@@ -36,12 +36,12 @@ async def usage_enough(event: Event) -> bool:
     if config.usage_limit.total_daily_limit != -1:
         if global_insights.usage_count >= config.usage_limit.total_daily_limit:
             return False
-    if config.usage_limit.total_daily_token_limit != -1:
-        if (
-            global_insights.token_input + global_insights.token_output
-            >= config.usage_limit.total_daily_token_limit
-        ):
-            return False
+    if config.usage_limit.total_daily_token_limit != -1 and (
+                global_insights.token_input + global_insights.token_output
+                >= config.usage_limit.total_daily_token_limit
+            ):
+        return False
+
     # ### End of global insights ###
 
     # ### User insights ###
