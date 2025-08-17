@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    String,
     Text,
     UniqueConstraint,
     delete,
@@ -174,7 +175,7 @@ class InsightsModel(BaseModel):
 class GlobalInsights(Model):
     __tablename__ = "suggarchat_global_insights"
     date: Mapped[str] = mapped_column(
-        Text,
+        String(64),
         primary_key=True,
         default=lambda: datetime.now().strftime("%Y-%m-%d"),
     )
