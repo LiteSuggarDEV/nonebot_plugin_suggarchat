@@ -32,6 +32,8 @@ class MemoryModel(BaseModel, extra="allow"):
     fake_people: bool = Field(default=False, description="是否启用假人")
     prompt: str = Field(default="", description="用户自定义提示词")
     usage: int = Field(default=0, description="请求次数")
+    input_token_usage: int = Field(default=0, description="token使用量")
+    output_token_usage: int = Field(default=0, description="token使用量")
 
     async def save(
         self,
@@ -112,6 +114,8 @@ async def get_memory_data(
             sessions=sessions,
             usage=memory.usage_count,
             timestamp=memory.time.timestamp(),
+            input_token_usage=memory.input_token_usage,
+            output_token_usage=memory.output_token_usage,
         )
         if group_conf:
             conf.enable = group_conf.enable
@@ -122,6 +126,8 @@ async def get_memory_data(
             != datetime.now().date().isoformat()
         ):
             conf.usage = 0
+            conf.input_token_usage = 0
+            conf.output_token_usage = 0
             conf.timestamp = int(datetime.now().timestamp())
             if event:
                 await conf.save(event)
@@ -171,6 +177,8 @@ async def write_memory_data(
             memory.sessions_json = json.dumps([s.model_dump() for s in data.sessions])
             memory.time = datetime.fromtimestamp(data.timestamp)
             memory.usage_count = data.usage
+            memory.input_token_usage = data.input_token_usage
+            memory.output_token_usage = data.output_token_usage
             if group_conf:
                 group_conf.enable = data.enable
                 group_conf.prompt = data.prompt

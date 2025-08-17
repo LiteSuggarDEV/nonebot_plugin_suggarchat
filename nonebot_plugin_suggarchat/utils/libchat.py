@@ -28,25 +28,35 @@ async def usage_enough(event: Event) -> bool:
     config = config_manager.config
     if not config.usage_limit.enable_usage_limit:
         return True
-    user_id = int(event.get_user_id())
     if await is_bot_admin(event):
         return True
-    if config.usage_limit.user_daily_limit == -1:
-        return True
+    user_id = int(event.get_user_id())
+    data = await get_memory_data(user_id=user_id)
     if (
-        await get_memory_data(user_id=user_id)
-    ).usage >= config.usage_limit.user_daily_limit:
+        data.usage >= config.usage_limit.user_daily_limit
+        and config.usage_limit.user_daily_limit != -1
+    ):
         return False
-    if hasattr(event, "group_id"):
-        gid = getattr(event, "group_id")
-        if gid is None:
-            return True
+    if (
+        config.usage_limit.user_daily_token_limit != -1
+        and (data.input_token_usage + data.output_token_usage)
+        >= config.usage_limit.user_daily_token_limit
+    ):
+        return False
+    if (gid := getattr(event, "group_id", None)) is not None:
         group_id = typing.cast(int, gid)
-        if config.usage_limit.group_daily_limit == -1:
-            return True
+        data = await get_memory_data(group_id=group_id)
+
         if (
-            await get_memory_data(group_id=group_id)
-        ).usage >= config.usage_limit.group_daily_limit:
+            config.usage_limit.group_daily_limit != -1
+            and data.usage >= config.usage_limit.group_daily_limit
+        ):
+            return False
+        if (
+            config.usage_limit.group_daily_token_limit != -1
+            and data.input_token_usage + data.output_token_usage
+            >= config.usage_limit.group_daily_token_limit
+        ):
             return False
 
     return True
@@ -109,7 +119,6 @@ async def tools_caller(
 
 async def get_chat(
     messages: list[Message | ToolResult],
-    tokens: int = 0,
 ) -> str:
     """获取聊天响应"""
     presets = [
@@ -132,7 +141,6 @@ async def get_chat(
         logger.debug(f"密钥：{preset.api_key[:7]}...")
         logger.debug(f"协议：{preset.protocol}")
         logger.debug(f"API地址：{preset.base_url}")
-        logger.debug(f"当前对话Tokens:{tokens}")
         response = ""
         # 调用适配器获取聊天响应
         try:

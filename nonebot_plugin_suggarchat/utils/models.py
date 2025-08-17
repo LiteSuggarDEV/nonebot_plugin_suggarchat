@@ -7,6 +7,7 @@ from nonebot_plugin_orm import AsyncSession, Model
 from pydantic import BaseModel as B_Model
 from pydantic import Field
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     ForeignKey,
@@ -75,7 +76,7 @@ class MemoryModel(BaseModel):
 class Memory(Model):
     __tablename__ = "suggarchat_memory_data"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    ins_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    ins_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     is_group: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     memory_json: Mapped[str] = mapped_column(
         Text,
@@ -87,6 +88,8 @@ class Memory(Model):
         DateTime, default=datetime.now, nullable=False
     )
     usage_count: Mapped[int] = mapped_column(Integer, default=0)
+    input_token_usage: Mapped[int] = mapped_column(BigInteger, default=0)
+    output_token_usage: Mapped[int] = mapped_column(BigInteger, default=0)
     __table_args__ = (
         UniqueConstraint("ins_id", "is_group", name="uq_ins_id_is_group"),
         Index("idx_ins_id", "ins_id"),
@@ -102,7 +105,7 @@ class GroupConfig(Model):
         autoincrement=True,
     )
     group_id: Mapped[int] = mapped_column(
-        Integer,
+        BigInteger,
         ForeignKey("suggarchat_memory_data.ins_id"),
         nullable=False,
     )
