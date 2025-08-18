@@ -4,7 +4,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, Field, model_validator
+from typing_extensions import Self
 
 from ...event import SuggarEvent
 from ...matcher import Matcher
@@ -35,48 +36,45 @@ class FunctionPropertySchema(BaseModel, Generic[T]):
     maxItems: int | None = Field(
         default=None, description="仅当type='array'时使用，定义数组元素数量最大长度"
     )
-    uniqueItems: bool | None = Field(default=None, description="是否要求数组元素唯一")
-    required: list[str] = Field(
-        default_factory=list, description="参数属性定义,仅当参数类型为object时有效"
+    uniqueItems: bool | None = Field(
+        default=None,
+        description="是否要求数组元素唯一，当类型为array时，此参数有效默认为False",
+    )
+    required: list[str] | None = Field(
+        default=None, description="参数属性定义,仅当参数类型为object时有效"
     )
 
-    @field_validator(
-        "properties",
-    )
-    def validate_properties_and_items(cls, v: dict[str, Any], info: ValidationInfo):
-        if v is not None:
-            # 检查properties非空时type必须为object
-            if v and info.data.get("type") != "object":
-                raise ValueError("When properties is not empty, type must be object")
-            elif info.data.get("items") is not None:
-                raise ValueError("Cannot specify both properties and items")
-            elif (
-                info.data.get("minItems") is not None
-                or info.data.get("maxItems") is not None
-                or info.data.get("uniqueItems") is not None
+    @model_validator(mode="after")
+    def validator(self) -> Self:
+        if self.type == "object":
+            if self.properties is None:
+                raise ValueError("When type is object, properties must be set.")
+            elif self.required is None:
+                self.required = []
+            if any(
+                i is not None
+                for i in (self.maxItems, self.minItems, self.uniqueItems, self.items)
             ):
                 raise ValueError(
-                    "Cannot specify minItems, maxItems, or uniqueItems for an object"
+                    "When type is object, `maxItems`,`minItems`,`uniqueItems`,`Items` must be None."
                 )
-            for key, value in v.items():
-                if not isinstance(value, FunctionPropertySchema):
-                    raise ValueError(f"Invalid value for {key}: {value}")
-        return v
+        elif self.type == "array":
+            if self.items is None:
+                raise ValueError("When type is array, items must be set.")
+            elif self.minItems is not None and self.minItems < 0:
+                raise ValueError("minItems must be greater than or equal to 0.")
+            elif self.maxItems is not None and self.maxItems < 0:
+                raise ValueError("maxItems must be greater than or equal to 0.")
+            elif (
+                self.maxItems is not None
+                and self.minItems is not None
+                and self.maxItems < self.minItems
+            ):
+                raise ValueError("maxItems must be greater than or equal to minItems.")
+            elif self.uniqueItems is None:
+                self.uniqueItems = False
 
-    @field_validator("items")
-    def validate_items(cls, v: dict[str, Any], info: ValidationInfo):
-        if v is not None:
-            # 检查items非空时type必须为array
-            if v and info.data.get("type") != "array":
-                raise ValueError("When items is not empty, type must be array")
-            elif info.data.get("properties") is not None:
-                raise ValueError("items and properties cannot be used together")
-            elif info.data.get("required") is not None:
-                raise ValueError("items and required cannot be used together")
-            for key, value in v.items():
-                if not isinstance(value, FunctionPropertySchema):
-                    raise ValueError(f"Invalid value for {key}: {value}")
-        return v
+        return self
 
 
 class FunctionParametersSchema(BaseModel):
@@ -106,6 +104,7 @@ class ToolFunctionSchema(BaseModel):
     )
     function: FunctionDefinitionSchema = Field(..., description="函数定义")
     strict: bool = Field(default=False, description="是否严格模式")
+
 
 @dataclass
 class ToolContext:
