@@ -21,7 +21,7 @@ from ..config import config_manager
 from ..utils.models import InsightsModel
 from .functions import remove_think_tag
 from .memory import BaseModel, Message, ToolResult, get_memory_data
-from .protocol import AdapterManager, ModelAdapter
+from .protocol import AdapterManager, ModelAdapter, UniResponse, UniResponseUsage
 
 
 async def usage_enough(event: Event) -> bool:
@@ -144,12 +144,13 @@ async def tools_caller(
 
 async def get_chat(
     messages: list[Message | ToolResult],
-) -> str:
+) -> UniResponse[str, None]:
     """获取聊天响应"""
     presets = [
         config_manager.config.preset,
         *config_manager.config.preset_extension.backup_preset_list,
     ]
+    assert len(presets) > 0
     err: Exception | None = None
     for pname in presets:
         preset = await config_manager.get_preset(pname)
@@ -192,16 +193,23 @@ async def get_chat(
             err = None
         if chat_manager.debug:
             logger.debug(response)
-        return remove_think_tag(response) if is_thought_chain_model else response
-    if err is not None:
-        raise err
-    return ""
+        response.content = (
+            remove_think_tag(response.content)
+            if is_thought_chain_model
+            else response.content
+        )
+        return response
+    else:
+        logger.warning("所有适配器调用失败")
+        raise err if err else Exception("所有适配器调用失败")
 
 
 class OpenAIAdapter(ModelAdapter):
     """OpenAI协议适配器"""
 
-    async def call_api(self, messages: Iterable[ChatCompletionMessageParam]) -> str:
+    async def call_api(
+        self, messages: Iterable[ChatCompletionMessageParam]
+    ) -> UniResponse[str, None]:
         """调用OpenAI API获取聊天响应"""
         preset = self.preset
         config = self.config
@@ -214,18 +222,31 @@ class OpenAIAdapter(ModelAdapter):
         completion: ChatCompletion | openai.AsyncStream[ChatCompletionChunk] | None = (
             None
         )
-
-        completion = await client.chat.completions.create(
-            model=preset.model,
-            messages=messages,
-            max_tokens=config.llm_config.max_tokens,
-            stream=config.llm_config.stream,
-        )
+        if config.llm_config.stream:
+            completion = await client.chat.completions.create(
+                model=preset.model,
+                messages=messages,
+                max_tokens=config.llm_config.max_tokens,
+                stream=config.llm_config.stream,
+                stream_options={"include_usage": True},
+            )
+        else:
+            completion = await client.chat.completions.create(
+                model=preset.model,
+                messages=messages,
+                max_tokens=config.llm_config.max_tokens,
+                stream=config.llm_config.stream,
+            )
         response: str = ""
+        uni_usage = None
         # 处理流式响应
         if config.llm_config.stream and isinstance(completion, openai.AsyncStream):
             async for chunk in completion:
                 try:
+                    if chunk.usage:
+                        uni_usage = UniResponseUsage.model_validate(
+                            chunk.usage, from_attributes=True
+                        )
                     if chunk.choices[0].delta.content is not None:
                         response += chunk.choices[0].delta.content
                         if chat_manager.debug:
@@ -241,9 +262,18 @@ class OpenAIAdapter(ModelAdapter):
                     if completion.choices[0].message.content is not None
                     else ""
                 )
+                if completion.usage:
+                    uni_usage = UniResponseUsage.model_validate(
+                        completion.usage, from_attributes=True
+                    )
             else:
                 raise RuntimeError("收到意外的响应类型")
-        return response if response is not None else ""
+        uni_response = UniResponse(
+            content=response,
+            usage=uni_usage,
+            tool_calls=None,
+        )
+        return uni_response
 
     @staticmethod
     def get_adapter_protocol() -> tuple[str, ...]:
