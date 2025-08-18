@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
@@ -106,11 +107,11 @@ class ToolFunctionSchema(BaseModel):
     function: FunctionDefinitionSchema = Field(..., description="函数定义")
     strict: bool = Field(default=False, description="是否严格模式")
 
-
-class ToolContext(BaseModel):
-    data: dict[str, Any]
-    event: SuggarEvent
-    matcher: Matcher = Field(..., description="当前SuggarMatcher对象")
+@dataclass
+class ToolContext:
+    data: dict[str, Any] = field()
+    event: SuggarEvent = field()
+    matcher: Matcher = field()
 
 
 class ToolData(BaseModel):
