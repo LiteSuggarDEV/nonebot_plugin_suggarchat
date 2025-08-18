@@ -73,7 +73,7 @@ class FunctionPropertySchema(BaseModel, Generic[T]):
             elif info.data.get("required") is not None:
                 raise ValueError("items and required cannot be used together")
             for key, value in v.items():
-                if not isinstance(value, FunctionDefinitionSchema):
+                if not isinstance(value, FunctionPropertySchema):
                     raise ValueError(f"Invalid value for {key}: {value}")
         return v
 
