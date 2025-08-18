@@ -25,7 +25,7 @@ class FunctionPropertySchema(BaseModel, Generic[T]):
     properties: dict[str, FunctionPropertySchema] | None = Field(
         default=None, description="参数属性定义,仅当参数类型为object时有效"
     )
-    items: dict[str, FunctionPropertySchema] | None = Field(
+    items: FunctionPropertySchema | None = Field(
         default=None, description="仅当type='array'时使用，定义数组元素类型"
     )
     minItems: int | None = Field(
