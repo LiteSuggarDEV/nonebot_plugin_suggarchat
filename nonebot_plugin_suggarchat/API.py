@@ -18,6 +18,7 @@ from .utils.llm_tools.models import (
     FunctionDefinitionSchema,
     FunctionParametersSchema,
     FunctionPropertySchema,
+    ToolContext,
     ToolData,
     ToolFunctionSchema,
 )
@@ -200,6 +201,7 @@ __all__ = [
     "Menu",
     "ModelAdapter",
     "Tokenizer",
+    "ToolContext",
     "ToolData",
     "ToolFunctionSchema",
     "ToolsManager",
