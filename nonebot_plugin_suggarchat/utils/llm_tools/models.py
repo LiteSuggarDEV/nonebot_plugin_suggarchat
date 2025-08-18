@@ -35,8 +35,8 @@ class FunctionPropertySchema(BaseModel, Generic[T]):
         default=None, description="仅当type='array'时使用，定义数组元素数量最大长度"
     )
     uniqueItems: bool | None = Field(default=None, description="是否要求数组元素唯一")
-    required: list[str] | None = Field(
-        default=None, description="参数属性定义,仅当参数类型为object时有效"
+    required: list[str] = Field(
+        default_factory=list, description="参数属性定义,仅当参数类型为object时有效"
     )
 
     @field_validator(
