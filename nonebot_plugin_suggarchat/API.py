@@ -5,6 +5,7 @@ from openai.types.chat.chat_completion_tool_choice_option_param import (
 
 from .chatmanager import chat_manager
 from .config import Config, ConfigManager, config_manager
+from .on_event import on_before_chat, on_before_poke, on_chat, on_event, on_poke
 from .utils.admin import send_to_admin
 from .utils.libchat import (
     AdapterManager,
@@ -12,17 +13,17 @@ from .utils.libchat import (
     get_chat,
     tools_caller,
 )
+from .utils.llm_tools.manager import ToolsManager
+from .utils.llm_tools.models import (
+    FunctionDefinitionSchema,
+    FunctionParametersSchema,
+    FunctionPropertySchema,
+    ToolData,
+    ToolFunctionSchema,
+)
+from .utils.memory import get_memory_data
+from .utils.models import InsightsModel
 from .utils.tokenizer import Tokenizer, hybrid_token_count
-
-__all__ = [
-    "AdapterManager",
-    "ConfigManager",
-    "ModelAdapter",
-    "Tokenizer",
-    "config_manager",
-    "hybrid_token_count",
-    "tools_caller",
-]
 
 
 class Menu:
@@ -185,3 +186,30 @@ class Chat:
         return await tools_caller(
             messages=messages, tools=tools, tool_choice=tool_choice
         )
+
+
+__all__ = [
+    "AdapterManager",
+    "Admin",
+    "Chat",
+    "ConfigManager",
+    "FunctionDefinitionSchema",
+    "FunctionParametersSchema",
+    "FunctionPropertySchema",
+    "InsightsModel",
+    "Menu",
+    "ModelAdapter",
+    "Tokenizer",
+    "ToolData",
+    "ToolFunctionSchema",
+    "ToolsManager",
+    "config_manager",
+    "get_memory_data",
+    "hybrid_token_count",
+    "on_before_chat",
+    "on_before_poke",
+    "on_chat",
+    "on_event",
+    "on_poke",
+    "tools_caller",
+]
