@@ -111,7 +111,8 @@ async def tools_caller(
         config_manager.config.preset,
         *config_manager.config.preset_extension.backup_preset_list,
     ]
-    assert len(presets) > 0
+    if not presets:
+        raise ValueError("预设列表为空，无法继续处理。")
     err: Exception | None = None
     for pname in presets:
         preset = await config_manager.get_preset(pname)
