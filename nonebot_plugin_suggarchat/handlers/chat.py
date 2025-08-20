@@ -117,16 +117,17 @@ async def enforce_token_limit(
             logger.opt(exception=e, colors=True).exception(str(e))
 
             break
-        full_string = "".join(
-            st["content"]
-            if isinstance(st["content"], str)
-            else "".join(
-                s.get("text")
-                for s in st["content"]
-                if s["type"] == "text" and s.get("text") is not None
-            )
-            for st in memory_l
-        )
+        string_parts = []
+        for st in memory_l:
+            if isinstance(st["content"], str):
+                string_parts.append(st["content"])
+            else:
+                string_parts.extend(
+                    s.get("text")
+                    for s in st["content"]
+                    if s["type"] == "text" and s.get("text") is not None
+                )
+        full_string = "".join(string_parts)
         tk_tmp = hybrid_token_count(
             full_string, config_manager.config.llm_config.tokens_count_mode
         )
