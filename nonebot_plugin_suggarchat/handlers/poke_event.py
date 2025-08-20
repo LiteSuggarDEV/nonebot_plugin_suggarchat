@@ -19,10 +19,9 @@ from ..utils.functions import (
 )
 from ..utils.libchat import get_chat, usage_enough
 from ..utils.lock import get_group_lock, get_private_lock
-from ..utils.memory import get_memory_data
+from ..utils.memory import Message, get_memory_data
 from ..utils.models import InsightsModel
-from ..utils.tokenizer import hybrid_token_count
-from .chat import FakeEvent
+from .chat import FakeEvent, get_tokens
 
 
 async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
@@ -122,14 +121,11 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
 
         # 获取聊天模型的回复
         response = await get_chat(send_messages)
-        output_tokens = hybrid_token_count(
-            response, mode=config_manager.config.llm_config.tokens_count_mode
+        tokens = await get_tokens(
+            [Message.model_validate(i) for i in send_messages], response
         )
-        input_tokens = hybrid_token_count(
-            "".join([i["content"] for i in send_messages]),
-            mode=config_manager.config.llm_config.tokens_count_mode,
-        )
-
+        input_tokens = tokens.prompt_tokens
+        output_tokens = tokens.completion_tokens
         insights = await InsightsModel.get()
 
         insights.usage_count += 1
@@ -162,17 +158,17 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
             poke_event = PokeEvent(
                 nbevent=event,
                 send_message=send_messages,
-                model_response=[response],
+                model_response=[response.content],
                 user_id=event.user_id,
             )
             await MatcherManager.trigger_event(poke_event, event, bot)
-            response = poke_event.model_response
+            response.content = poke_event.model_response
 
         # 如果开启调试模式，发送调试信息给管理员
         if chat_manager.debug:
             await send_to_admin(f"POKEMSG {send_messages}")
 
-        return response
+        return response.content
 
     async def send_split_messages(response: str, user_id: int):
         """发送分段消息"""

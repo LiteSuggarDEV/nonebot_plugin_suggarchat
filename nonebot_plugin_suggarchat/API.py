@@ -1,7 +1,6 @@
 from nonebot import logger
-from openai.types.chat.chat_completion_tool_choice_option_param import (
-    ChatCompletionToolChoiceOptionParam,
-)
+
+from nonebot_plugin_suggarchat.utils.protocol import ToolChoice
 
 from .chatmanager import chat_manager
 from .config import Config, ConfigManager, config_manager
@@ -175,7 +174,7 @@ class Chat:
         self,
         messages: list,
         tools: list,
-        tool_choice: ChatCompletionToolChoiceOptionParam | None = None,
+        tool_choice: ToolChoice | None = None,
     ):
         """
         调用工具

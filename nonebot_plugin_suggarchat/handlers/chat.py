@@ -24,6 +24,8 @@ from nonebot.exception import NoneBotException
 from nonebot.matcher import Matcher
 from typing_extensions import override
 
+from nonebot_plugin_suggarchat.utils.protocol import UniResponse, UniResponseUsage
+
 from ..chatmanager import SessionTemp, chat_manager
 from ..config import config_manager
 from ..event import BeforeChatEvent, ChatEvent
@@ -35,7 +37,6 @@ from ..utils.admin import (
 from ..utils.functions import (
     get_current_datetime_timestamp,
     get_friend_name,
-    remove_think_tag,
     split_message_into_chats,
     synthesize_message,
 )
@@ -60,6 +61,77 @@ class FakeEvent(Event):
     @override
     def get_user_id(self) -> str:
         return str(self.user_id)
+
+
+async def get_tokens(
+    memory: list[Message | ToolResult], response: UniResponse[str, None]
+) -> UniResponseUsage[int]:
+    memory_l = [i.model_dump() for i in memory]
+    full_string = ""
+    if (
+        response.usage is not None
+        and response.usage.total_tokens is not None
+        and response.usage.completion_tokens is not None
+        and response.usage.prompt_tokens is not None
+    ):
+        return response.usage
+    full_string = ""
+    for st in memory_l:
+        if isinstance(st["content"], str):
+            full_string += st["content"]
+        else:
+            temp_string = "".join(s["text"] for s in st["content"] if s["type"] == "text")
+            full_string += temp_string
+    it = hybrid_token_count(full_string)
+    ot = hybrid_token_count(response.content)
+    return UniResponseUsage(
+        prompt_tokens=it, total_tokens=it + ot, completion_tokens=ot
+    )
+
+
+async def enforce_token_limit(
+    data: MemoryModel,
+    train: dict[str, Any],
+    response: UniResponse[str, None],
+) -> UniResponseUsage[int]:
+    """
+    控制 token 数量，删除超出限制的旧消息.
+    """
+    train = copy.deepcopy(train)
+    memory_l = [train, *data.memory.messages]
+    tokens = await get_tokens(memory_l, response)
+    if not config_manager.config.llm_config.enable_tokens_limit:
+        return tokens
+    tk_tmp = tokens.total_tokens
+    while tk_tmp > config_manager.config.session.session_max_tokens:
+        try:
+            if len(data.memory.messages) > 0:
+                del data.memory.messages[0]
+            else:
+                logger.warning(
+                    f"提示词大小过大！为{hybrid_token_count(train['content'])}>{config_manager.config.session.session_max_tokens}！"
+                )
+                break
+        except Exception as e:
+            await send_to_admin(f"上下文限制清理出现异常！{e!s}")
+            logger.opt(exception=e, colors=True).exception(str(e))
+
+            break
+        string_parts = []
+        for st in memory_l:
+            if isinstance(st["content"], str):
+                string_parts.append(st["content"])
+            else:
+                string_parts.extend(
+                    s.get("text")
+                    for s in st["content"]
+                    if s["type"] == "text" and s.get("text") is not None
+                )
+        full_string = "".join(string_parts)
+        tk_tmp = hybrid_token_count(
+            full_string, config_manager.config.llm_config.tokens_count_mode
+        )
+    return tokens
 
 
 async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
@@ -149,17 +221,14 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             logger.debug(f"当前群组提示词：\n{config_manager.group_train}")
         # 控制记忆长度和 token 限制
         await enforce_memory_limit(data, memory_length_limit)
-        tokens = await enforce_token_limit(
-            data, copy.deepcopy(config_manager.group_train)
-        )
 
         # 准备发送给模型的消息
         send_messages = prepare_send_messages(
             data, copy.deepcopy(config_manager.group_train)
         )
-        response = await process_chat(event, send_messages, tokens)
+        response = await process_chat(event, send_messages)
 
-        await send_response(event, response)
+        await send_response(event, response.content)
 
     async def handle_private_message(
         event: PrivateMessageEvent,
@@ -228,17 +297,13 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             logger.debug(f"当前私聊提示词：\n{config_manager.private_train}")
         # 控制记忆长度和 token 限制
         await enforce_memory_limit(data, memory_length_limit)
-        tokens = await enforce_token_limit(
-            data, copy.deepcopy(config_manager.private_train)
-        )
 
         # 准备发送给模型的消息
         send_messages = prepare_send_messages(
             data, copy.deepcopy(config_manager.private_train)
         )
-        response = await process_chat(event, send_messages, tokens)
-
-        await send_response(event, response)
+        response = await process_chat(event, send_messages)
+        await send_response(event, response.content)
 
     async def manage_sessions(
         event: GroupMessageEvent | PrivateMessageEvent,
@@ -371,57 +436,6 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             else:
                 break
 
-    async def enforce_token_limit(data: MemoryModel, train: dict[str, Any]) -> int:
-        """
-        控制 token 数量，删除超出限制的旧消息，返回处理后的Tokens。
-        """
-        train = copy.deepcopy(train)
-        memory_l = [train, *[i.model_dump() for i in data.memory.messages]]
-        full_string = ""
-        for st in memory_l:
-            if isinstance(st["content"], str):
-                full_string += st["content"]
-            else:
-                temp_string = ""
-                for s in st["content"]:
-                    if s["type"] == "text":
-                        temp_string += s["text"]
-                full_string += temp_string
-        tokens = hybrid_token_count(
-            full_string, config_manager.config.llm_config.tokens_count_mode
-        )
-        if not config_manager.config.llm_config.enable_tokens_limit:
-            return tokens
-        while tokens > config_manager.config.session.session_max_tokens:
-            try:
-                if len(data.memory.messages) > 0:
-                    del data.memory.messages[0]
-                else:
-                    logger.warning(
-                        f"提示词大小过大！为{hybrid_token_count(train['content'])}>{config_manager.config.session.session_max_tokens}！"
-                    )
-                    break
-            except Exception as e:
-                await send_to_admin(f"上下文限制清理出现异常！{e!s}")
-                logger.opt(exception=e, colors=True).exception(str(e))
-
-                break
-            full_string = ""
-            for st in memory_l:
-                full_string += (
-                    st["content"]
-                    if isinstance(st["content"], str)
-                    else "".join(
-                        s.get("text")
-                        for s in st["content"]
-                        if s["type"] == "text" and s.get("text") is not None
-                    )
-                )
-            tokens = hybrid_token_count(
-                full_string, config_manager.config.llm_config.tokens_count_mode
-            )
-        return tokens
-
     def prepare_send_messages(data: MemoryModel, train: dict[str, str]) -> list:
         """
         准备发送给聊天模型的消息列表，包括系统提示词数据和上下文。
@@ -434,6 +448,8 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
                     train["content"]
                     .replace("{cookie}", config_manager.config.cookies.cookie)
                     .replace("{self_id}", str(event.self_id))
+                    .replace("{user_id}", str(event.user_id))
+                    .replace("{user_name}", str(event.sender.nickname))
                 )
             )
         train["content"] += (
@@ -444,8 +460,8 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         return send_messages
 
     async def process_chat(
-        event: MessageEvent, send_messages: list[Message | ToolResult], tokens: int
-    ) -> str:
+        event: MessageEvent, send_messages: list[Message | ToolResult]
+    ) -> UniResponse[str, None]:
         """
         调用聊天模型生成回复，并触发相关事件。
         """
@@ -465,33 +481,28 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             chat_event = ChatEvent(
                 nbevent=event,
                 send_message=send_messages,
-                model_response=[response],
+                model_response=[response.content],
                 user_id=event.user_id,
             )
             await MatcherManager.trigger_event(chat_event, event, bot)
-            response = chat_event.model_response
-        if (
-            await config_manager.get_preset(config_manager.config.preset)
-        ).thought_chain_model:
-            response = remove_think_tag(response)
 
+        tokens = await enforce_token_limit(
+            data, copy.deepcopy(config_manager.group_train), response
+        )
         # 记录模型回复
         data.memory.messages.append(
             Message(
-                content=response,
+                content=response.content,
                 role="assistant",
             )
         )
 
-        output_tokens = hybrid_token_count(
-            response, mode=config_manager.config.llm_config.tokens_count_mode
-        )
         insights = await InsightsModel.get()
 
         # 写入全局统计
         insights.usage_count += 1
-        insights.token_output += output_tokens
-        insights.token_input += tokens
+        insights.token_output += tokens.completion_tokens
+        insights.token_input += tokens.prompt_tokens
         await insights.save()
 
         # 写入记忆数据
@@ -512,8 +523,8 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             else ((data, event),)
         ):
             d.usage += 1  # 增加使用次数
-            d.output_token_usage += output_tokens
-            d.input_token_usage += tokens
+            d.output_token_usage += tokens.completion_tokens
+            d.input_token_usage += tokens.prompt_tokens
             await d.save(ev)
 
         return response
