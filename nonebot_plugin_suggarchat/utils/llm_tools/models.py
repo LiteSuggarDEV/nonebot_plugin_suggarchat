@@ -99,10 +99,8 @@ class FunctionDefinitionSchema(BaseModel):
 class ToolFunctionSchema(BaseModel):
     """校验完整的function字段结构"""
 
-    type: Literal["function"] = Field(
-        default="function", description="工具类型必须是function"
-    )
     function: FunctionDefinitionSchema = Field(..., description="函数定义")
+    type: Literal["function"] = "function"
     strict: bool = Field(default=False, description="是否严格模式")
 
 

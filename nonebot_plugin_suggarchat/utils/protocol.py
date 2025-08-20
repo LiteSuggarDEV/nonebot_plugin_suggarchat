@@ -4,12 +4,13 @@ import typing
 from abc import abstractmethod
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Generic
+from typing import Any, Generic, Literal
 
 from nonebot import logger
 from pydantic import BaseModel
 
 from ..config import Config, ModelPreset
+from .llm_tools.models import ToolFunctionSchema
 
 
 class Function(BaseModel):
@@ -36,8 +37,10 @@ class ToolCall(BaseModel):
     """The type of the tool. Currently, only `function` is supported."""
 
 
+ToolChoice = Literal["none", "auto", "required"] | ToolFunctionSchema
+
 T = typing.TypeVar("T", None, str)
-T_TOOL = typing.TypeVar("T_TOOL", list[ToolCall], None)
+T_TOOL = typing.TypeVar("T_TOOL", list[ToolCall], None, list[ToolCall] | None)
 T_INT = typing.TypeVar("T_INT", int, None)
 
 
@@ -72,6 +75,14 @@ class ModelAdapter:
     async def call_api(self, messages: Iterable[Any]) -> UniResponse[str, None]:
         raise NotImplementedError
 
+    async def call_tools(
+        self,
+        messages: Iterable,
+        tools: list[ToolFunctionSchema],
+        tool_choice: ToolChoice | None = None,
+    ) -> UniResponse[None, list[ToolCall] | None]:
+        raise NotImplementedError
+
     @staticmethod
     @abstractmethod
     def get_adapter_protocol() -> str | tuple[str, ...]:
@@ -79,7 +90,7 @@ class ModelAdapter:
 
     @property
     def protocol(self):
-        """获取适配器协议"""
+        """获取模型协议适配器"""
         return self.get_adapter_protocol()
 
 
@@ -120,20 +131,20 @@ class AdapterManager:
         if isinstance(protocol, str):
             if protocol in self._adapter_class:
                 if not override:
-                    raise ValueError(f"适配器协议 {protocol} 已经被注册")
+                    raise ValueError(f"模型协议适配器 {protocol} 已经被注册")
                 logger.warning(
-                    f"适配器协议 {protocol} 已经被{self._adapter_class[protocol].__name__}注册，覆盖原有适配器"
+                    f"模型协议适配器 {protocol} 已经被{self._adapter_class[protocol].__name__}注册，覆盖原有适配器"
                 )
 
             self._adapter_class[protocol] = adapter
         elif isinstance(protocol, tuple):
             for p in protocol:
                 if not isinstance(p, str):
-                    raise TypeError("适配器协议必须是字符串或字符串元组")
+                    raise TypeError("模型协议适配器必须是字符串或字符串元组")
                 if p in self._adapter_class:
                     if not override:
-                        raise ValueError(f"适配器协议 {p} 已经被注册")
+                        raise ValueError(f"模型协议适配器 {p} 已经被注册")
                     logger.warning(
-                        f"适配器协议 {p} 已经被{self._adapter_class[p].__name__}注册，覆盖原有适配器"
+                        f"模型协议适配器 {p} 已经被{self._adapter_class[p].__name__}注册，覆盖原有适配器"
                     )
                 self._adapter_class[p] = adapter

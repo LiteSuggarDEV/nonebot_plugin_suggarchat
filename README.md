@@ -1,9 +1,9 @@
 <div align="center">
-  <a href="https://github.com/JohnRichard4096/nonebot_plugin_suggarchat/">
+  <a href="https://github.com/LiteSuggarDEV/nonebot_plugin_suggarchat/">
     <img src="https://github.com/user-attachments/assets/b5162036-5b17-4cf4-b0cb-8ec842a71bc6" width="200" alt="SuggarChat Logo">
   </a>
   <h1>SuggarChat</h1>
-  <h3>高扩展性的大模型聊天框架</h3>
+  <h3>大模型聊天框架</h3>
 
   <p>
     <a href="https://pypi.org/project/nonebot-plugin-suggarchat/">
@@ -13,10 +13,10 @@
       <img src="https://img.shields.io/badge/python-3.9+-blue?logo=python&style=flat-square" alt="Python Version">
     </a>
     <a href="https://nonebot.dev/">
-      <img src="https://img.shields.io/badge/nonebot2-2.0.0rc4+-blue?style=flat-square" alt="NoneBot Version">
+      <img src="https://img.shields.io/badge/nonebot2-2.4.0+-blue?style=flat-square" alt="NoneBot Version">
     </a>
     <a href="LICENSE">
-      <img src="https://img.shields.io/github/license/JohnRichard4096/nonebot_plugin_suggarchat?style=flat-square" alt="License">
+      <img src="https://img.shields.io/github/license/LiteSuggarDEV/nonebot_plugin_suggarchat?style=flat-square" alt="License">
     </a>
     <a href="https://qm.qq.com/q/PFcfb4296m">
       <img src="https://img.shields.io/badge/QQ%E7%BE%A4-1002495699-blue?style=flat-square" alt="QQ Group">

@@ -62,6 +62,7 @@ class FakeEvent(Event):
     def get_user_id(self) -> str:
         return str(self.user_id)
 
+
 async def get_tokens(
     memory: list[Message | ToolResult], response: UniResponse[str, None]
 ) -> UniResponseUsage[int]:
@@ -135,6 +136,7 @@ async def enforce_token_limit(
             full_string, config_manager.config.llm_config.tokens_count_mode
         )
     return tokens
+
 
 async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
     """

@@ -9,11 +9,20 @@ from nonebot import logger
 from nonebot.adapters.onebot.v11 import Event
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
-from openai.types.chat.chat_completion_message import ChatCompletionMessage
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
+from openai.types.chat.chat_completion_named_tool_choice_param import (
+    ChatCompletionNamedToolChoiceParam,
+)
+from openai.types.chat.chat_completion_named_tool_choice_param import (
+    Function as OPENAI_Function,
+)
 from openai.types.chat.chat_completion_tool_choice_option_param import (
     ChatCompletionToolChoiceOptionParam,
 )
+from typing_extensions import override
+
+from nonebot_plugin_suggarchat.utils.llm_tools.models import ToolFunctionSchema
+from nonebot_plugin_suggarchat.utils.protocol import ToolCall
 
 from ..chatmanager import chat_manager
 from ..check_rule import is_bot_admin
@@ -21,7 +30,13 @@ from ..config import config_manager
 from ..utils.models import InsightsModel
 from .functions import remove_think_tag
 from .memory import BaseModel, Message, ToolResult, get_memory_data
-from .protocol import AdapterManager, ModelAdapter, UniResponse, UniResponseUsage
+from .protocol import (
+    AdapterManager,
+    ModelAdapter,
+    ToolChoice,
+    UniResponse,
+    UniResponseUsage,
+)
 
 
 async def usage_enough(event: Event) -> bool:
@@ -90,58 +105,38 @@ async def usage_enough(event: Event) -> bool:
 async def tools_caller(
     messages: Iterable,
     tools: list,
-    tool_choice: ChatCompletionToolChoiceOptionParam | None = None,
-) -> ChatCompletionMessage:
-    if not tool_choice:
-        tool_choice = (
-            "required"
-            if (
-                config_manager.config.llm_config.tools.require_tools and len(tools) > 1
-            )  # 排除默认工具
-            else "auto"
-        )
-    config = config_manager.config
-    preset_list = [config.preset, *deepcopy(config.preset_extension.backup_preset_list)]
-    err: None | Exception = None
-    if not preset_list:
-        preset_list = ["default"]
-    for name in preset_list:
+    tool_choice: ToolChoice | None = None,
+):
+    presets = [
+        config_manager.config.preset,
+        *config_manager.config.preset_extension.backup_preset_list,
+    ]
+    assert len(presets) > 0
+    err: Exception | None = None
+    for pname in presets:
+        preset = await config_manager.get_preset(pname)
+        if adapter := AdapterManager().safe_get_adapter(preset.protocol):
+            logger.debug(f"使用适配器 {adapter.__name__} 处理协议 {preset.protocol}")
+        else:
+            raise ValueError(f"未定义的协议适配器：{preset.protocol}")
+        logger.debug(f"开始获取 {preset.model} 的带有工具的对话")
+        logger.debug(f"预设：{pname}")
+        logger.debug(f"密钥：{preset.api_key[:7]}...")
+        logger.debug(f"协议：{preset.protocol}")
+        logger.debug(f"API地址：{preset.base_url}")
+        logger.debug(f"模型：{preset.model}")
         try:
-            preset = await config_manager.get_preset(name)
-
-            if preset.protocol not in ("__main__", "openai"):
-                continue
-            base_url = preset.base_url
-            key = preset.api_key
-            model = preset.model
-
-            logger.debug(f"开始获取 {preset.model} 的带有工具的对话")
-            logger.debug(f"预设：{name}")
-            logger.debug(f"密钥：{preset.api_key[:7]}...")
-            logger.debug(f"协议：{preset.protocol}")
-            logger.debug(f"API地址：{preset.base_url}")
-            client = openai.AsyncOpenAI(
-                base_url=base_url, api_key=key, timeout=config.llm_config.llm_timeout
-            )
-            completion: ChatCompletion = await client.chat.completions.create(
-                model=model,
-                messages=messages,
-                stream=False,
-                tool_choice=tool_choice,
-                tools=tools,
-            )
-            return completion.choices[0].message
-
+            processer = adapter(preset, config_manager.config)
+            response = await processer.call_tools(messages, tools, tool_choice)
+            return response
+        except NotImplementedError:
+            continue
         except Exception as e:
-            logger.warning(f"[OpenAI] {name} 模型调用失败: {e}")
+            logger.warning(f"调用适配器失败{e}，正在尝试下一个Adapter")
             err = e
             continue
-    logger.warning("Tools调用因为没有OPENAI协议模型而失败")
-    if err is not None:
-        raise err
-    return ChatCompletionMessage(role="assistant", content="")
-
-
+    else:
+        raise err or RuntimeError("所有适配器调用失败")
 async def get_chat(
     messages: list[Message | ToolResult],
 ) -> UniResponse[str, None]:
@@ -185,23 +180,21 @@ async def get_chat(
                     for i in messages
                 ]
             )
+            response.content = (
+                remove_think_tag(response.content)
+                if is_thought_chain_model
+                else response.content
+            )
+            if chat_manager.debug:
+                logger.debug(response)
+            return response
         except Exception as e:
             logger.warning(f"调用适配器失败{e}，正在尝试下一个Adapter")
             err = e
             continue
-        else:
-            err = None
-        if chat_manager.debug:
-            logger.debug(response)
-        response.content = (
-            remove_think_tag(response.content)
-            if is_thought_chain_model
-            else response.content
-        )
-        return response
     else:
         logger.warning("所有适配器调用失败")
-        raise err if err else Exception("所有适配器调用失败")
+        raise err or Exception("所有适配器调用失败")
 
 
 class OpenAIAdapter(ModelAdapter):
@@ -274,6 +267,81 @@ class OpenAIAdapter(ModelAdapter):
             tool_calls=None,
         )
         return uni_response
+
+    @override
+    async def call_tools(
+        self,
+        messages: Iterable,
+        tools: list,
+        tool_choice: ToolChoice | None = None,
+    ) -> UniResponse[None, list[ToolCall] | None]:
+        if not tool_choice:
+            choice: ChatCompletionToolChoiceOptionParam = (
+                "required"
+                if (
+                    config_manager.config.llm_config.tools.require_tools
+                    and len(tools) > 1
+                )  # 排除默认工具
+                else "auto"
+            )
+        elif isinstance(tool_choice, ToolFunctionSchema):
+            choice = ChatCompletionNamedToolChoiceParam(
+                function=OPENAI_Function(name=tool_choice.function.name),
+                type=tool_choice.type,
+            )
+        else:
+            choice = tool_choice
+        config = config_manager.config
+        preset_list = [
+            config.preset,
+            *deepcopy(config.preset_extension.backup_preset_list),
+        ]
+        err: None | Exception = None
+        if not preset_list:
+            preset_list = ["default"]
+        for name in preset_list:
+            try:
+                preset = await config_manager.get_preset(name)
+
+                if preset.protocol not in ("__main__", "openai"):
+                    continue
+                base_url = preset.base_url
+                key = preset.api_key
+                model = preset.model
+                client = openai.AsyncOpenAI(
+                    base_url=base_url,
+                    api_key=key,
+                    timeout=config.llm_config.llm_timeout,
+                )
+                completion: ChatCompletion = await client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    stream=False,
+                    tool_choice=choice,
+                    tools=tools,
+                )
+                msg = completion.choices[0].message
+                return UniResponse(
+                    tool_calls=[
+                        ToolCall.model_validate(i, from_attributes=True)
+                        for i in msg.tool_calls
+                    ]
+                    if msg.tool_calls
+                    else None,
+                    content=None,
+                )
+
+            except Exception as e:
+                logger.warning(f"[OpenAI] {name} 模型调用失败: {e}")
+                err = e
+                continue
+        logger.warning("OpenAI协议Tools调用尝试失败")
+        if err is not None:
+            raise err
+        return UniResponse(
+            tool_calls=None,
+            content=None,
+        )
 
     @staticmethod
     def get_adapter_protocol() -> tuple[str, ...]:
