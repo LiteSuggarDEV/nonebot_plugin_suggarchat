@@ -74,24 +74,19 @@ async def get_tokens(
         and response.usage.completion_tokens is not None
         and response.usage.prompt_tokens is not None
     ):
-        tokens = response.usage
-    else:
-        full_string = ""
-        for st in memory_l:
-            if isinstance(st["content"], str):
-                full_string += st["content"]
-            else:
-                temp_string = ""
-                for s in st["content"]:
-                    if s["type"] == "text":
-                        temp_string += s["text"]
-                full_string += temp_string
-        it = hybrid_token_count(full_string)
-        ot = hybrid_token_count(response.content)
-        tokens = UniResponseUsage(
-            prompt_tokens=it, total_tokens=it + ot, completion_tokens=ot
-        )
-    return tokens
+        return response.usage
+    full_string = ""
+    for st in memory_l:
+        if isinstance(st["content"], str):
+            full_string += st["content"]
+        else:
+            temp_string = "".join(s["text"] for s in st["content"] if s["type"] == "text")
+            full_string += temp_string
+    it = hybrid_token_count(full_string)
+    ot = hybrid_token_count(response.content)
+    return UniResponseUsage(
+        prompt_tokens=it, total_tokens=it + ot, completion_tokens=ot
+    )
 
 
 async def enforce_token_limit(
