@@ -145,7 +145,7 @@ async def get_chat(
         config_manager.config.preset,
         *config_manager.config.preset_extension.backup_preset_list,
     ]
-    assert len(presets) > 0
+    assert presets
     err: Exception | None = None
     for pname in presets:
         preset = await config_manager.get_preset(pname)
