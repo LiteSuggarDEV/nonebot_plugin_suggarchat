@@ -95,8 +95,8 @@ async def get_memory_data(
 
         session.add(memory)
         await session.refresh(memory)
-        memory_data = memory.memory
-        sessions_data = memory.sessions
+        memory_data = memory.memory_json
+        sessions_data = memory.sessions_json
         messages = [
             (
                 Message.model_validate(i)
@@ -171,8 +171,8 @@ async def write_memory_data(
                     for_update=True,
                 )
             session.add(memory)
-            memory.memory = data.memory.model_dump()
-            memory.sessions = [s.model_dump() for s in data.sessions]
+            memory.memory_json = data.memory.model_dump()
+            memory.sessions_json = [s.model_dump() for s in data.sessions]
             memory.time = datetime.fromtimestamp(data.timestamp)
             memory.usage_count = data.usage
             memory.input_token_usage = data.input_token_usage

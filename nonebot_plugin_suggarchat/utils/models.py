@@ -194,13 +194,13 @@ class Memory(Model):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     ins_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     is_group: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    memory: Mapped[dict[str, Any]] = mapped_column(
+    memory_json: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         default=MemoryModel().model_dump(),
         nullable=False,
         server_default=text("'{}'"),
     )
-    sessions: Mapped[list[dict[str, Any]]] = mapped_column(
+    sessions_json: Mapped[list[dict[str, Any]]] = mapped_column(
         JSON,
         default=[],
         nullable=False,
