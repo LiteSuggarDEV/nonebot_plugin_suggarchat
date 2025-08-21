@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from datetime import datetime
 from typing import overload
@@ -96,19 +95,19 @@ async def get_memory_data(
 
         session.add(memory)
         await session.refresh(memory)
-        memory_json_text = memory.memory_json
-        sessions_json = memory.sessions_json
+        memory_data = memory.memory
+        sessions_data = memory.sessions
         messages = [
             (
                 Message.model_validate(i)
                 if i["role"] != "tool"
                 else ToolResult.model_validate(i)
             )
-            for i in (json.loads(memory_json_text))["messages"]
+            for i in (memory_data)["messages"]
         ]
         c_memory = Memory(messages=messages, time=memory.time.timestamp())
 
-        sessions = [Memory.model_validate(i) for i in json.loads(sessions_json)]
+        sessions = [Memory.model_validate(i) for i in sessions_data]
         conf = MemoryModel(
             memory=c_memory,
             sessions=sessions,
@@ -172,8 +171,8 @@ async def write_memory_data(
                     for_update=True,
                 )
             session.add(memory)
-            memory.memory_json = data.memory.model_dump_json()
-            memory.sessions_json = json.dumps([s.model_dump() for s in data.sessions])
+            memory.memory = data.memory.model_dump()
+            memory.sessions = [s.model_dump() for s in data.sessions]
             memory.time = datetime.fromtimestamp(data.timestamp)
             memory.usage_count = data.usage
             memory.input_token_usage = data.input_token_usage
