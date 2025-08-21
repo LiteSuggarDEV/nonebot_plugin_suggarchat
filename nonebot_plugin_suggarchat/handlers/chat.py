@@ -49,7 +49,7 @@ from ..utils.memory import (
     ToolResult,
     get_memory_data,
 )
-from ..utils.models import InsightsModel
+from ..utils.models import ImageContent, ImageUrl, InsightsModel, TextContent
 from ..utils.tokenizer import hybrid_token_count
 
 command_prefix = get_driver().config.command_start or "/"
@@ -80,7 +80,9 @@ async def get_tokens(
         if isinstance(st["content"], str):
             full_string += st["content"]
         else:
-            temp_string = "".join(s["text"] for s in st["content"] if s["type"] == "text")
+            temp_string = "".join(
+                s["text"] for s in st["content"] if s["type"] == "text"
+            )
             full_string += temp_string
     it = hybrid_token_count(full_string)
     ot = hybrid_token_count(response.content)
@@ -97,8 +99,8 @@ async def enforce_token_limit(
     """
     控制 token 数量，删除超出限制的旧消息.
     """
-    train = copy.deepcopy(train)
-    memory_l = [train, *data.memory.messages]
+    train_model = Message.model_validate(train)
+    memory_l: list[Message | ToolResult] = [train_model, *data.memory.messages]
     tokens = await get_tokens(memory_l, response)
     if not config_manager.config.llm_config.enable_tokens_limit:
         return tokens
@@ -131,6 +133,7 @@ async def enforce_token_limit(
         tk_tmp = hybrid_token_count(
             full_string, config_manager.config.llm_config.tokens_count_mode
         )
+        await asyncio.sleep(0)
     return tokens
 
 
@@ -198,15 +201,14 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         if config_manager.config.parse_segments:
             text = (
                 [
-                    {
-                        "type": "text",
-                        "text": f"[{role}][{Date}][{user_name}（{user_id}）]说:{content}",
-                    },
+                    TextContent(
+                        text=f"[{role}][{Date}][{user_name}（{user_id}）]说:{content}"
+                    )
                 ]
                 + [
-                    {"type": "input_image", "url": seg.data.get("url")}
+                    ImageContent(image_url=ImageUrl(url=seg.data["url"]))
                     for seg in event.message
-                    if seg.data.get("type") == "image"
+                    if seg.data.get("type") == "image" and seg.data.get("url")
                 ]
                 if is_multimodal
                 else f"[{role}][{Date}][{user_name}（{user_id}）]说:{content}"
@@ -214,9 +216,7 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         else:
             text = event.message.extract_plain_text()
 
-        data.memory.messages.append(
-            Message.model_validate({"role": "user", "content": text})
-        )
+        data.memory.messages.append(Message(role="user", content=text))
         if chat_manager.debug:
             logger.debug(f"当前群组提示词：\n{config_manager.group_train}")
         # 控制记忆长度和 token 限制
@@ -275,24 +275,21 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
         if config_manager.config.parse_segments:
             text = (
                 [
-                    {
-                        "type": "text",
-                        "text": f"{Date}{await get_friend_name(event.user_id, bot=bot)}（{event.user_id}）： {content!s}",
-                    },
+                    TextContent(
+                        text=f"{Date}{await get_friend_name(event.user_id, bot=bot)}（{event.user_id}）： {content!s}"
+                    )
                 ]
                 + [
-                    {"type": "image_url", "image_url": {"url": seg.data.get("url")}}
+                    ImageContent(image_url=ImageUrl(url=seg.data["url"]))
                     for seg in event.message
-                    if seg.data.get("type") == "image"
+                    if seg.data.get("type") == "image" and seg.data.get("url")
                 ]
                 if is_multimodal
                 else f"{Date}{await get_friend_name(event.user_id, bot=bot)}（{event.user_id}）： {content!s}"
             )
         else:
             text = event.message.extract_plain_text()
-        data.memory.messages.append(
-            Message.model_validate({"role": "user", "content": text})
-        )
+        data.memory.messages.append(Message(role="user", content=text))
         if chat_manager.debug:
             logger.debug(f"当前私聊提示词：\n{config_manager.private_train}")
         # 控制记忆长度和 token 限制

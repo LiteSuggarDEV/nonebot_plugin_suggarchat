@@ -28,8 +28,12 @@ def upgrade(name: str = "") -> None:
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("ins_id", sa.Integer(), nullable=False),
         sa.Column("is_group", sa.Boolean(), nullable=False),
-        sa.Column("messages_json", sa.Text(), nullable=False),
-        sa.Column("sessions_json", sa.Text(), nullable=False),
+        sa.Column(
+            "messages_json", sa.Text(), nullable=False, server_default=sa.text("'{}'")
+        ),
+        sa.Column(
+            "sessions_json", sa.Text(), nullable=False, server_default=sa.text("'[]'")
+        ),
         sa.Column("time", sa.DateTime(), nullable=False),
         sa.Column("usage_count", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_suggarchat_memory_data")),

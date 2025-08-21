@@ -7,6 +7,7 @@ from nonebot_plugin_orm import AsyncSession, Model, get_session
 from pydantic import BaseModel as B_Model
 from pydantic import Field
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Boolean,
     DateTime,
@@ -193,12 +194,18 @@ class Memory(Model):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     ins_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     is_group: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    memory_json: Mapped[str] = mapped_column(
-        Text,
-        default=MemoryModel().model_dump_json(),
+    memory_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
+        default=MemoryModel().model_dump(),
         nullable=False,
+        server_default=text("'{}'"),
     )
-    sessions_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    sessions_json: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON,
+        default=[],
+        nullable=False,
+        server_default=text("'[]'"),
+    )
     time: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.now, nullable=False
     )
