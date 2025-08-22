@@ -69,7 +69,7 @@ async def get_memory_data(
     """获取事件对应的记忆数据，如果不存在则创建初始数据"""
 
     is_group = False
-    if ins_id := (getattr(event, "group_id", None) or group_id):
+    if (ins_id := (getattr(event, "group_id", None) or group_id)) is not None:
         ins_id = int(ins_id)
         if chat_manager.debug:
             logger.debug(f"获取Group{ins_id} 的记忆数据")
@@ -150,7 +150,9 @@ async def write_memory_data(
                 logger.debug(f"事件：{type(event)}")
             is_group = hasattr(event, "group_id")
             ins_id = int(
-                getattr(event, "group_id") if is_group else event.get_user_id()
+                getattr(event, "group_id")
+                if is_group and getattr(event, "group_id", None)
+                else event.get_user_id()
             )
 
             group_conf = None
