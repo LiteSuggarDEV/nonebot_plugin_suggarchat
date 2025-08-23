@@ -3,6 +3,7 @@ from typing import Literal
 
 import jieba
 
+jieba.initialize()
 
 def hybrid_token_count(
     text: str,

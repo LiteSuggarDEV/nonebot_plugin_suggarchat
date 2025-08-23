@@ -1,6 +1,6 @@
 [project]
 name = "nonebot_plugin_suggarchat"
-version = "3.4.5.2"
+version = "3.4.5.3"
 description = "SuggarChat chat framework"
 authors = [{ name = "LiteSuggarDEV", email = "windowserror@163.com" }]
 dependencies = [
@@ -18,7 +18,7 @@ dependencies = [
     "dotenv>=0.9.9",
     "aiofiles>=24.1.0",
     "importlib>=1.0.4",
-    "watchfiles>=1.1.0",
+    "watchfiles>=0.18.0",
     "nonebot-plugin-orm>=0.8.2",
 ]
 requires-python = ">=3.10, <4.0"
