@@ -79,9 +79,7 @@ class ModelPreset(BaseModel):
     @classmethod
     def load(cls, path: Path):
         if path.exists():
-            with path.open(
-                "r",
-            ) as f:
+            with path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
             return cls.model_validate(data)
         return cls()  # 返回默认值
@@ -287,9 +285,7 @@ class Config(BaseModel):
     @classmethod
     def load_from_json(cls, path: Path) -> "Config":
         """从 JSON 文件加载配置"""
-        with path.open(
-            "r",
-        ) as f:
+        with path.open("r", encoding="utf-8") as f:
             data: dict[str, Any] = json.load(f)
         return cls.model_validate(data)
 
@@ -469,11 +465,11 @@ class ConfigManager:
             return self.prompts
         self.prompts = Prompts()
         for file in self.private_prompts.glob("*.txt"):
-            async with aiofiles.open(str(file)) as f:
+            async with aiofiles.open(str(file), encoding="utf-8") as f:
                 prompt = await f.read()
             self.prompts.private.append(Prompt(prompt, file.stem))
         for file in self.group_prompts.glob("*.txt"):
-            async with aiofiles.open(str(file)) as f:
+            async with aiofiles.open(str(file), encoding="utf-8") as f:
                 prompt = await f.read()
             self.prompts.group.append(Prompt(prompt, file.stem))
         if not self.prompts.private:
