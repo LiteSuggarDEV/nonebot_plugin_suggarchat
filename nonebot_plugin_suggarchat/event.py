@@ -8,8 +8,6 @@ from nonebot.adapters.onebot.v11 import (
 )
 from typing_extensions import override
 
-from .utils.memory import Message, ToolResult
-
 
 class EventTypeEnum(str, Enum):
     """
@@ -129,7 +127,7 @@ class SuggarEvent(BasicEvent):
         model_response: list[str],
         nbevent: Event,
         user_id: int,
-        send_message: list[Message | ToolResult],
+        send_message: list,
     ):
         """
         初始化SuggarEvent对象
@@ -148,7 +146,7 @@ class SuggarEvent(BasicEvent):
         # 初始化用户ID
         self._user_id: int = user_id
         # 初始化要发送的消息内容
-        self._send_message: list[Message | ToolResult] = send_message
+        self._send_message: list = send_message
 
     def __bool__(self):
         return True
@@ -267,7 +265,7 @@ class ChatEvent(SuggarEvent):
     def __init__(
         self,
         nbevent: MessageEvent,
-        send_message: list[Message | ToolResult],
+        send_message: list,
         model_response: list[str],
         user_id: int,
     ):
