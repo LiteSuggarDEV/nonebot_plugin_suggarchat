@@ -5,6 +5,7 @@ import jieba
 
 jieba.initialize()
 
+
 def hybrid_token_count(
     text: str,
     mode: Literal["word", "bpe", "char"] = "word",

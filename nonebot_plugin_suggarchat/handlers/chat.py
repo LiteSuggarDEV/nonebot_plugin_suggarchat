@@ -24,7 +24,8 @@ from nonebot.exception import NoneBotException
 from nonebot.matcher import Matcher
 from typing_extensions import override
 
-from nonebot_plugin_suggarchat.utils.protocol import UniResponse, UniResponseUsage
+from nonebot_plugin_suggarchat.utils.models import UniResponseUsage
+from nonebot_plugin_suggarchat.utils.protocol import UniResponse
 
 from ..chatmanager import SessionTemp, chat_manager
 from ..config import config_manager
