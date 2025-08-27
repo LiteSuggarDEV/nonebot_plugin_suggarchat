@@ -30,12 +30,14 @@ from ..config import config_manager
 from ..utils.models import InsightsModel
 from .functions import remove_think_tag
 from .memory import BaseModel, Message, ToolResult, get_memory_data
-from .protocol import (
-    AdapterManager,
-    ModelAdapter,
+from .models import (
     ToolChoice,
     UniResponse,
     UniResponseUsage,
+)
+from .protocol import (
+    AdapterManager,
+    ModelAdapter,
 )
 
 
@@ -106,7 +108,7 @@ async def tools_caller(
     messages: Iterable,
     tools: list,
     tool_choice: ToolChoice | None = None,
-):
+) -> UniResponse[None, list[ToolCall] | None]:
     presets = [
         config_manager.config.preset,
         *config_manager.config.preset_extension.backup_preset_list,

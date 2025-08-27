@@ -24,7 +24,8 @@ from nonebot.exception import NoneBotException
 from nonebot.matcher import Matcher
 from typing_extensions import override
 
-from nonebot_plugin_suggarchat.utils.protocol import UniResponse, UniResponseUsage
+from nonebot_plugin_suggarchat.utils.models import UniResponseUsage
+from nonebot_plugin_suggarchat.utils.protocol import UniResponse
 
 from ..chatmanager import SessionTemp, chat_manager
 from ..config import config_manager
@@ -99,8 +100,11 @@ async def enforce_token_limit(
     """
     控制 token 数量，删除超出限制的旧消息.
     """
-    train_model = Message.model_validate(train)
-    memory_l: list[Message | ToolResult] = [train_model, *data.memory.messages]
+    train_model = Message[str].model_validate(train)
+    memory_l: list[Message | ToolResult] = [
+        train_model,
+        *data.memory.messages,
+    ]
     tokens = await get_tokens(memory_l, response)
     if not config_manager.config.llm_config.enable_tokens_limit:
         return tokens

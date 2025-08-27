@@ -28,7 +28,7 @@ async def onEnable():
     kernel_version = "unknown"
     try:
         kernel_version = metadata.version("nonebot_plugin_suggarchat")
-        config.__kernel_version__ = kernel_version
+        setattr(config, "__kernel_version__", kernel_version)
         if "dev" in kernel_version:
             logger.warning("当前版本为开发版本，可能存在不稳定情况！")
     except Exception:
