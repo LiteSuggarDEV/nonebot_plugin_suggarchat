@@ -39,7 +39,7 @@ class ToolCall(BaseModel):
 
 ToolChoice = Literal["none", "auto", "required"] | ToolFunctionSchema
 
-T = typing.TypeVar("T", None, str)
+T = typing.TypeVar("T", None, str, None | typing.Literal[""])
 T_TOOL = typing.TypeVar("T_TOOL", list[ToolCall], None, list[ToolCall] | None)
 T_INT = typing.TypeVar("T_INT", int, None)
 
@@ -52,7 +52,6 @@ class UniResponseUsage(BaseModel, Generic[T_INT]):
 
 class UniResponse(BaseModel, Generic[T, T_TOOL]):
     """统一响应格式"""
-
     usage: UniResponseUsage | None = None
     content: T
     tool_calls: T_TOOL

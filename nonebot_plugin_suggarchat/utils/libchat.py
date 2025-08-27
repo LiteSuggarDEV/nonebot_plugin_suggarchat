@@ -106,7 +106,7 @@ async def tools_caller(
     messages: Iterable,
     tools: list,
     tool_choice: ToolChoice | None = None,
-):
+) -> UniResponse[None, list[ToolCall] | None]:
     presets = [
         config_manager.config.preset,
         *config_manager.config.preset_extension.backup_preset_list,

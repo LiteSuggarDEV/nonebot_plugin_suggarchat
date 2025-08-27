@@ -65,7 +65,7 @@ async def run_tools(event: BeforeChatEvent) -> None:
             tools,
         )
         if tool_calls := response_msg.tool_calls:
-            msg_list.append(Message.model_validate(dict(response_msg)))
+            msg_list.append(Message[None].model_validate(dict(response_msg)))
             for tool_call in tool_calls:
                 function_name = tool_call.function.name
                 function_args: dict[str, Any] = json.loads(tool_call.function.arguments)

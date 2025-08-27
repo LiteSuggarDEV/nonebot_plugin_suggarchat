@@ -1,7 +1,8 @@
 import json
 import time
+import typing
 from datetime import datetime, timedelta
-from typing import Any, Literal, overload
+from typing import Any, Generic, Literal, overload
 
 from nonebot_plugin_orm import AsyncSession, Model, get_session
 from pydantic import BaseModel as B_Model
@@ -26,11 +27,14 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 from typing_extensions import Self
 
+from nonebot_plugin_suggarchat.utils.protocol import ToolCall
+
 from ..config import config_manager
 from .lock import database_lock
 
 # Pydantic 模型
 
+_T = typing.TypeVar("_T", str, None, str | None)
 
 class BaseModel(B_Model):
     def __str__(self) -> str:
@@ -60,9 +64,10 @@ class TextContent(BaseModel):
     text: str = Field(..., description="文本内容")
 
 
-class Message(BaseModel):
+class Message(BaseModel, Generic[_T]):
     role: Literal["user", "assistant", "system"] = Field(..., description="角色")
-    content: str | list[TextContent | ImageContent] = Field(..., description="内容")
+    content: list[TextContent | ImageContent] | _T = Field(..., description="内容")
+    tool_calls: list[ToolCall] | None = Field(default=None, description="工具调用")
 
 
 class ToolResult(BaseModel):
