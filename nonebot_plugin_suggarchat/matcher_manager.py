@@ -96,7 +96,7 @@ base_matcher.on_command(
     aliases={"失忆", "删除记忆", "删除历史消息", "删除回忆"},
     block=True,
     priority=10,
-    permission=is_group_admin,
+    permission=is_group_admin_if_is_in_group,
 ).append_handler(del_memory)
 on_command(
     "enable",
