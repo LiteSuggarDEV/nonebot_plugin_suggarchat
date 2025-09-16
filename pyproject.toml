@@ -1,6 +1,6 @@
 [project]
 name = "nonebot_plugin_suggarchat"
-version = "3.4.6.1"
+version = "3.4.6.2"
 description = "SuggarChat chat framework"
 authors = [{ name = "LiteSuggarDEV", email = "windowserror@163.com" }]
 dependencies = [
