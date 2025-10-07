@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import time
 import typing
@@ -28,19 +30,16 @@ from sqlalchemy.orm import Mapped, mapped_column
 from typing_extensions import Self
 
 from ..config import config_manager
-from .llm_tools.models import ToolFunctionSchema
 from .lock import database_lock
 
-_T = typing.TypeVar("_T", str, None, str | None)
+# Pydantic 模型
 T = typing.TypeVar("T", None, str, None | typing.Literal[""])
 T_INT = typing.TypeVar("T_INT", int, None)
-ToolChoice = Literal["none", "auto", "required"] | ToolFunctionSchema
-
-
-# Pydantic 模型
 
 
 class BaseModel(B_Model):
+    """BaseModel+dict鸭子类型"""
+
     def __str__(self) -> str:
         return json.dumps(self.model_dump(), ensure_ascii=True)
 
@@ -87,9 +86,13 @@ class UniResponseUsage(BaseModel, Generic[T_INT]):
     total_tokens: T_INT
 
 
-class UniResponse(BaseModel, Generic[T, T_TOOL]):
+class UniResponse(
+    BaseModel,
+    Generic[T, T_TOOL],
+):
     """统一响应格式"""
 
+    role: Literal["assistant", "function"] = "assistant"
     usage: UniResponseUsage | None = None
     content: T
     tool_calls: T_TOOL
@@ -99,18 +102,26 @@ class ImageUrl(BaseModel):
     url: str = Field(..., description="图片URL")
 
 
-class ImageContent(BaseModel):
+class Content(BaseModel): ...
+
+
+class ImageContent(Content):
     type: Literal["image_url"] = "image_url"
     image_url: ImageUrl = Field(..., description="图片URL")
 
 
-class TextContent(BaseModel):
+class TextContent(Content):
     type: Literal["text"] = "text"
     text: str = Field(..., description="文本内容")
 
 
+_T = typing.TypeVar("_T", str, None, str | None, list)
+
+
 class Message(BaseModel, Generic[_T]):
-    role: Literal["user", "assistant", "system"] = Field(..., description="角色")
+    role: Literal["user", "assistant", "system"] = Field(
+        default="assistant", description="角色"
+    )
     content: list[TextContent | ImageContent] | _T = Field(..., description="内容")
     tool_calls: list[ToolCall] | None = Field(default=None, description="工具调用")
 

@@ -10,8 +10,6 @@ from nonebot.adapters.onebot.v11 import Bot, MessageEvent
 from nonebot.exception import NoneBotException
 from nonebot.log import logger
 
-from nonebot_plugin_suggarchat.utils.llm_tools.models import ToolContext
-
 from .config import config_manager
 from .event import BeforeChatEvent, ChatEvent
 from .exception import (
@@ -24,8 +22,9 @@ from .utils.admin import send_to_admin
 from .utils.libchat import (
     tools_caller,
 )
-from .utils.llm_tools.builtin_tools import REPORT_TOOL, report
+from .utils.llm_tools.builtin_tools import REPORT_TOOL, STOP_TOOL, report
 from .utils.llm_tools.manager import ToolsManager
+from .utils.llm_tools.models import ToolContext
 from .utils.memory import (
     Message,
     ToolResult,
@@ -41,38 +40,51 @@ ChatException: TypeAlias = (
 
 
 @prehook.handle()
-async def run_tools(event: BeforeChatEvent) -> None:
-    config = config_manager.config
-    if not config.llm_config.tools.enable_tools:
-        return
-    nonebot_event = event.get_nonebot_event()
-    if not isinstance(nonebot_event, MessageEvent):
-        return
-    bot = typing.cast(Bot, get_bot(str(nonebot_event.self_id)))
-    msg_list = event._send_message
-    chat_list_backup = deepcopy(event.message.copy())
-
-    try:
+async def rag_tools(event: BeforeChatEvent) -> None:
+    async def run_tools(
+        msg_list: list,
+        nonebot_event: MessageEvent,
+        call_count: int = 0,
+        original_msg: str = "",
+    ):
+        if call_count > config_manager.config.llm_config.tools.agent_tool_call_limit:
+            await bot.send(nonebot_event, "调用工具次数过多，Agent工作已终止。")
+            return
         tools: list[dict[str, Any]] = []
         if config.llm_config.tools.enable_report:
             tools.append(REPORT_TOOL.model_dump(exclude_none=True))
         tools.extend(ToolsManager().tools_meta_dict(exclude_none=True).values())
         response_msg = await tools_caller(
             [
-                *deepcopy([i.model_dump() for i in msg_list if i.role == "system"]),
-                deepcopy(msg_list)[-1].model_dump(),
+                *deepcopy([i for i in msg_list if i["role"] == "system"]),
+                deepcopy(msg_list)[-1],
             ],
             tools,
         )
         if tool_calls := response_msg.tool_calls:
-            msg_list.append(Message[None].model_validate(dict(response_msg)))
+            msg_list.append(Message.model_validate(response_msg, from_attributes=True))
+            result_msg_list: list[ToolResult] = []
             for tool_call in tool_calls:
+                call_count += 1
                 function_name = tool_call.function.name
                 function_args: dict[str, Any] = json.loads(tool_call.function.arguments)
                 logger.debug(f"函数参数为{tool_call.function.arguments}")
                 logger.debug(f"正在调用函数{function_name}")
                 match function_name:
-                    case "report":
+                    case STOP_TOOL.function.name:
+                        msg_list.append(
+                            Message(
+                                role="user",
+                                content="你已经完成了聊天前任务，请继续完成对话补全。"
+                                + (
+                                    f"\n<INPUT>{original_msg}</INPUT>"
+                                    if original_msg
+                                    else ""
+                                ),
+                            )
+                        )
+                        return
+                    case REPORT_TOOL.function.name:
                         func_response = await report(
                             nonebot_event,
                             function_args.get("content", ""),
@@ -84,7 +96,9 @@ async def run_tools(event: BeforeChatEvent) -> None:
                             await data.save(nonebot_event)
                             await bot.send(
                                 nonebot_event,
-                                random.choice(config_manager.config.cookies.block_msg),
+                                random.choice(
+                                    config_manager.config.llm_config.block_msg
+                                ),
                             )
                             prehook.cancel_nonebot_process()
                     case _:
@@ -97,7 +111,7 @@ async def run_tools(event: BeforeChatEvent) -> None:
                                     tool_data.func,
                                 )(function_args)
                             elif (
-                                response := await typing.cast(
+                                tool_response := await typing.cast(
                                     Callable[[ToolContext], Awaitable[str | None]],
                                     tool_data.func,
                                 )(
@@ -105,12 +119,13 @@ async def run_tools(event: BeforeChatEvent) -> None:
                                         data=function_args,
                                         event=event,
                                         matcher=prehook,
+                                        bot=bot,
                                     )
                                 )
                             ) is None:
                                 continue
                             else:
-                                func_response = response
+                                func_response = tool_response
                         else:
                             logger.opt(exception=True, colors=True).error(
                                 f"ChatHook中遇到了未定义的函数：{function_name}"
@@ -118,12 +133,48 @@ async def run_tools(event: BeforeChatEvent) -> None:
                             continue
                 logger.debug(f"函数{function_name}返回：{func_response}")
 
-                msg = ToolResult(
+                msg: ToolResult = ToolResult(
                     content=func_response,
                     name=function_name,
                     tool_call_id=tool_call.id,
                 )
                 msg_list.append(msg)
+                result_msg_list.append(msg)
+            if config_manager.config.llm_config.tools.agent_mode_enable:
+                # 发送工具调用信息给用户
+                await bot.send(
+                    nonebot_event,
+                    f"调用了函数{''.join([f'`{i.function.name}`,' for i in tool_calls])}",
+                )
+                observation_msg = "\n".join(
+                    [
+                        f"工具 {result.name} 的执行结果: {result.content}\n"
+                        for result in result_msg_list
+                    ]
+                )
+                msg_list.append(
+                    Message(
+                        role="user",
+                        content=f"观察结果:\n{observation_msg}\n请基于以上工具执行结果继续完成任务，如果任务已完成请使用工具 '{STOP_TOOL.function.name}' 结束。",
+                    )
+                )
+                await run_tools(msg_list, nonebot_event, call_count, original_msg)
+
+    config = config_manager.config
+    if not config.llm_config.tools.enable_tools:
+        return
+    nonebot_event = event.get_nonebot_event()
+    if not isinstance(nonebot_event, MessageEvent):
+        return
+    bot = typing.cast(Bot, get_bot(str(nonebot_event.self_id)))
+    msg_list = event._send_message
+    chat_list_backup = deepcopy(event.message.copy())
+
+    try:
+        await run_tools(
+            msg_list, nonebot_event, original_msg=nonebot_event.get_plaintext()
+        )
+
     except Exception as e:
         if isinstance(e, ChatException):
             raise
@@ -152,6 +203,6 @@ async def cookie(event: ChatEvent, bot: Bot):
                 await data.save(nonebot_event)
                 await bot.send(
                     nonebot_event,
-                    random.choice(config_manager.config.cookies.block_msg),
+                    random.choice(config_manager.config.llm_config.block_msg),
                 )
                 posthook.cancel_nonebot_process()

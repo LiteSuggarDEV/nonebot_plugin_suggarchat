@@ -1,6 +1,11 @@
-from nonebot import logger
+"""聊天插件API模块
 
-from nonebot_plugin_suggarchat.utils.protocol import ToolChoice
+该模块提供了聊天插件的公共API接口，包括菜单管理、管理员操作、聊天功能等核心功能的封装。
+"""
+
+from __future__ import annotations
+
+from nonebot import logger
 
 from .chatmanager import chat_manager
 from .config import Config, ConfigManager, config_manager
@@ -12,11 +17,12 @@ from .utils.libchat import (
     get_chat,
     tools_caller,
 )
-from .utils.llm_tools.manager import ToolsManager
+from .utils.llm_tools.manager import ToolsManager, on_tools
 from .utils.llm_tools.models import (
     FunctionDefinitionSchema,
     FunctionParametersSchema,
     FunctionPropertySchema,
+    ToolChoice,
     ToolContext,
     ToolData,
     ToolFunctionSchema,
@@ -176,12 +182,15 @@ class Chat:
         tools: list,
         tool_choice: ToolChoice | None = None,
     ):
-        """
-        调用工具
+        """调用工具
+
+        使用指定的工具和消息调用工具函数。
 
         :param messages: 消息列表
         :param tools: 工具列表
-        :param tool_choice: 工具选择参数
+        :param tool_choice: 工具选择参数（可选）
+
+        :returns: 工具调用结果
         """
         return await tools_caller(
             messages=messages, tools=tools, tool_choice=tool_choice
@@ -212,5 +221,6 @@ __all__ = [
     "on_chat",
     "on_event",
     "on_poke",
+    "on_tools",
     "tools_caller",
 ]

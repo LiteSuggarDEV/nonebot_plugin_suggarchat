@@ -1,4 +1,9 @@
+# Todo: 重构Event类实现
+from __future__ import annotations
+
+import typing
 from enum import Enum
+from typing import Literal
 
 from nonebot.adapters.onebot.v11 import (
     Event,
@@ -7,6 +12,10 @@ from nonebot.adapters.onebot.v11 import (
     PokeNotifyEvent,
 )
 from typing_extensions import override
+
+from .utils.models import Message, ToolResult
+
+SEND_MESSAGES = list[Message[str | None] | ToolResult]
 
 
 class EventTypeEnum(str, Enum):
@@ -26,95 +35,10 @@ class EventTypeEnum(str, Enum):
         return name in self
 
 
-class EventType:
-    """
-    EventType类用于定义和管理不同的事件类型。
-    它封装了事件类型的字符串标识，提供了一种结构化的方式 来处理和获取事件类型。
-
-    属性:
-    __CHAT (str): 表示聊天事件的字符串标识。
-    __None (str): 表示空事件或未定义事件的字符串标识。
-    __POKE (str): 表示戳一戳事件的字符串标识。
-    """
-
-    __CHAT = "chat"
-    __None = ""
-    __POKE = "poke"
-    __BEFORE_CHAT = "before_chat"
-    __BEFORE_POKE = "before_poke"
-
-    def __init__(self):
-        """
-        初始化EventType类的实例。
-        目前初始化方法内没有实现具体操作。
-        """
-        return
-
-    def chat(self):
-        """
-        获取聊天事件的字符串标识。
-
-        返回:
-        str: 聊天事件的字符串标识。
-        """
-        return self.__CHAT
-
-    def before_chat(self):
-        """
-        获取聊天调用LLM前的的事件类型的字符串标识。
-
-        返回:
-        str: 聊天前的事件类型的字符串标识。
-        """
-        return self.__BEFORE_CHAT
-
-    def before_poke(self):
-        """
-        获取戳一戳事件调用LLM前的类型的字符串标识。
-
-        返回:
-        str: 戳一戳前的事件类型的字符串标识。
-        """
-        return self.__BEFORE_POKE
-
-    def none(self):
-        """
-        获取空事件或未定义事件的字符串标识。
-
-        返回:
-        str: 空事件或未定义事件的字符串标识。
-        """
-        return self.__None
-
-    def poke(self):
-        """
-        获取戳一戳事件的字符串标识。
-
-        返回:
-        str: 戳一戳事件的字符串标识。
-        """
-        return self.__POKE
-
-    def get_event_types(self):
-        """
-        获取所有事件类型的字符串标识列表。
-
-        返回:
-        list of str: 包含所有事件类型字符串标识的列表。
-        """
-        return [self.__CHAT, self.__None, self.__POKE]
-
-    def validate(self, name: str) -> bool:
-        return name in self.get_event_types()
-
-
 class BasicEvent:
     """
     所有事件的基类
     """
-
-    def __init__(self):
-        pass
 
 
 class SuggarEvent(BasicEvent):
@@ -124,10 +48,10 @@ class SuggarEvent(BasicEvent):
 
     def __init__(
         self,
-        model_response: list[str],
+        model_response: str,
         nbevent: Event,
         user_id: int,
-        send_message: list,
+        send_message: SEND_MESSAGES,
     ):
         """
         初始化SuggarEvent对象
@@ -142,14 +66,11 @@ class SuggarEvent(BasicEvent):
         # 保存NoneBot事件对象
         self._nbevent = nbevent
         # 初始化模型响应文本
-        self._modelResponse: list[str] = model_response
+        self._modelResponse: list[str] = [model_response]
         # 初始化用户ID
         self._user_id: int = user_id
         # 初始化要发送的消息内容
-        self._send_message: list = send_message
-
-    def __bool__(self):
-        return True
+        self._send_message: SEND_MESSAGES = send_message
 
     def __str__(self):
         """
@@ -175,7 +96,7 @@ class SuggarEvent(BasicEvent):
         return self._nbevent
 
     @property
-    def message(self) -> list:
+    def message(self) -> SEND_MESSAGES:
         """
         获取传入到模型的上下文
 
@@ -208,7 +129,7 @@ class SuggarEvent(BasicEvent):
         """
         self._modelResponse[0] = value
 
-    def get_send_message(self) -> list:
+    def get_send_message(self) -> SEND_MESSAGES:
         """
         获取传入到模型的上下文
 
@@ -240,7 +161,7 @@ class SuggarEvent(BasicEvent):
         """
         return self._user_id
 
-    def get_event_on_location(self):
+    def get_event_on_location(self) -> Literal["group", "private"]:
         """
         获取事件发生的位置，此方法在基类中未实现，应在子类中重写
 
@@ -257,7 +178,7 @@ class ChatEvent(SuggarEvent):
 
     参数:
     - nbevent: MessageEvent - 消息事件对象，包含事件的相关信息。
-    - send_message: list - 发送到模型的上下文。
+    - send_message: SEND_MESSAGES - 发送到模型的上下文。
     - model_response: str - 模型的响应内容。
     - user_id: int - 用户ID。
     """
@@ -265,8 +186,8 @@ class ChatEvent(SuggarEvent):
     def __init__(
         self,
         nbevent: MessageEvent,
-        send_message: list,
-        model_response: list[str],
+        send_message: SEND_MESSAGES,
+        model_response: str,
         user_id: int,
     ):
         """
@@ -311,7 +232,7 @@ class ChatEvent(SuggarEvent):
         return EventTypeEnum.CHAT
 
     @override
-    def get_event_on_location(self):
+    def get_event_on_location(self) -> Literal["group", "private"]:
         """
         获取事件发生的位置。
 
@@ -320,6 +241,10 @@ class ChatEvent(SuggarEvent):
         """
         return "group" if isinstance(self._nbevent, GroupMessageEvent) else "private"
 
+    @property
+    def event_message(self):
+        return typing.cast(MessageEvent, self._nbevent).message
+
 
 class PokeEvent(SuggarEvent):
     """
@@ -327,7 +252,7 @@ class PokeEvent(SuggarEvent):
 
     参数:
     - nbevent: PokeNotifyEvent类型，表示戳一戳通知事件。
-    - send_message: list 发送到模型的上下文。
+    - send_message: SEND_MESSAGES 发送到模型的上下文。
     - model_response: str类型，模型的响应。
     - user_id: int类型，用户ID。
     """
@@ -335,8 +260,8 @@ class PokeEvent(SuggarEvent):
     def __init__(
         self,
         nbevent: PokeNotifyEvent,
-        send_message: list,
-        model_response: list,
+        send_message: SEND_MESSAGES,
+        model_response: str,
         user_id: int,
     ):
         # 初始化PokeEvent类，并设置相关属性
@@ -373,7 +298,7 @@ class BeforePokeEvent(PokeEvent):
     继承自PokeEvent的BeforePokeEvent类，用于处理调用模型之前的事件，通常用于依赖注入或权限控制的写法中。
     参数:
     - nbevent: PokeNotifyEvent类型，表示戳一戳通知事件。
-    - send_message: list 发送到模型的上下文。
+    - send_message: SEND_MESSAGES 发送到模型的上下文。
     - model_response: str类型，模型的响应。
     - user_id: int类型，用户ID。
     """
@@ -381,8 +306,8 @@ class BeforePokeEvent(PokeEvent):
     def __init__(
         self,
         nbevent: PokeNotifyEvent,
-        send_message: list,
-        model_response: list,
+        send_message: SEND_MESSAGES,
+        model_response: str,
         user_id: int,
     ):
         # 初始化BeforePokeEvent类，并设置相关属性
@@ -410,7 +335,7 @@ class BeforeChatEvent(ChatEvent):
     继承自ChatEvent的BeforeChatEvent类，用于处理调用模型之前的事件，通常用于依赖注入或权限控制的写法中。
     参数:
     - nbevent: MessageEvent类型，表示消息事件。
-    - send_message: list 发送到模型的上下文。
+    - send_message: SEND_MESSAGES 发送到模型的上下文。
     - model_response: str类型，模型的响应。
     - user_id: int类型，用户ID。
 
@@ -419,8 +344,8 @@ class BeforeChatEvent(ChatEvent):
     def __init__(
         self,
         nbevent: MessageEvent,
-        send_message: list,
-        model_response: list,
+        send_message: SEND_MESSAGES,
+        model_response: str,
         user_id: int,
     ):
         # 初始化BeforeChatEvent类，并设置相关属性
@@ -441,16 +366,3 @@ class BeforeChatEvent(ChatEvent):
     def get_event_type(self) -> str:
         # 重写get_event_type方法，返回聊天事件类型
         return self._event_type
-
-
-class FinalObject:
-    """
-    最终返回的对象
-    """
-
-    def __init__(self, send_message: list):
-        self.__message = send_message
-
-    @property
-    def message(self) -> list:
-        return self.__message
