@@ -101,20 +101,22 @@ async def enforce_token_limit(
                 f"上下文限制清理出现异常！{e!s}"
             )
             break
-        string_parts = []
+        tk_tmp = 0
         for st in memory_l:
             if isinstance(st["content"], str):
-                string_parts.append(st["content"])
+                string_parts = st["content"]
             else:
-                string_parts.extend(
-                    s.get("text")
-                    for s in st["content"]
-                    if s["type"] == "text" and s.get("text") is not None
+                string_parts = "".join(
+                    [
+                        s.get("text")
+                        for s in st["content"]
+                        if s["type"] == "text" and s.get("text") is not None
+                    ]
                 )
-        full_string = "".join(string_parts)
-        tk_tmp = hybrid_token_count(
-            full_string, config_manager.config.llm_config.tokens_count_mode
-        )
+
+            tk_tmp += hybrid_token_count(
+                string_parts, config_manager.config.llm_config.tokens_count_mode
+            )
         await asyncio.sleep(0)
     return tokens
 
