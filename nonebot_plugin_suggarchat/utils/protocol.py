@@ -8,7 +8,8 @@ from typing import Any
 from nonebot import logger
 
 from ..config import Config, ModelPreset
-from .models import ToolCall, ToolChoice, ToolFunctionSchema, UniResponse
+from .llm_tools.models import ToolChoice, ToolFunctionSchema
+from .models import ToolCall, UniResponse
 
 
 @dataclass
@@ -25,8 +26,7 @@ class ModelAdapter:
             AdapterManager().register_adapter(cls)
 
     @abstractmethod
-    async def call_api(self, messages: Iterable[Any]) -> UniResponse[str, None]:
-        raise NotImplementedError
+    async def call_api(self, messages: Iterable[Any]) -> UniResponse[str, None]: ...
 
     async def call_tools(
         self,
@@ -38,8 +38,7 @@ class ModelAdapter:
 
     @staticmethod
     @abstractmethod
-    def get_adapter_protocol() -> str | tuple[str, ...]:
-        raise NotImplementedError
+    def get_adapter_protocol() -> str | tuple[str, ...]: ...
 
     @property
     def protocol(self):
@@ -73,13 +72,7 @@ class AdapterManager:
 
     def register_adapter(self, adapter: type[ModelAdapter]):
         """注册适配器"""
-        try:
-            protocol = adapter.get_adapter_protocol()
-        except NotImplementedError as e:
-            logger.error(
-                f"Adapter {adapter.__name__} does not implement get_adapter_protocol: {e}"
-            )
-            return
+        protocol = adapter.get_adapter_protocol()
         override = adapter.__override__ if hasattr(adapter, "__override__") else False
         if isinstance(protocol, str):
             if protocol in self._adapter_class:

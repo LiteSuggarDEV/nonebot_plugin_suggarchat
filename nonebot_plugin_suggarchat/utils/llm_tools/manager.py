@@ -3,7 +3,7 @@ from typing import Any, ClassVar
 
 from typing_extensions import Self
 
-from .models import ToolData, ToolFunctionSchema
+from .models import FunctionDefinitionSchema, ToolContext, ToolData, ToolFunctionSchema
 
 
 class ToolsManager:
@@ -54,3 +54,23 @@ class ToolsManager:
     def remove_tool(self, name: str) -> None:
         if name in self._models:
             del self._models[name]
+
+
+def on_tools(
+    data: FunctionDefinitionSchema,
+    custom_run: bool = False,
+    strict: bool = False,
+):
+    def decorator(
+        func: Callable[[dict[str, Any]], Awaitable[str]]
+        | Callable[[ToolContext], Awaitable[str | None]],
+    ):
+        tool_data = ToolData(
+            func=func,
+            data=ToolFunctionSchema(function=data, type="function", strict=strict),
+            custom_run=custom_run,
+        )
+        ToolsManager().register_tool(tool_data)
+        return func
+
+    return decorator

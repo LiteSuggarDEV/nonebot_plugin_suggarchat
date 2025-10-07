@@ -10,15 +10,27 @@ from nonebot.adapters.onebot.v11.event import (
     GroupMessageEvent,
     MessageEvent,
 )
+from typing_extensions import override
 
 from .config import config_manager
 from .utils.functions import (
     get_current_datetime_timestamp,
     synthesize_message,
 )
+from .utils.libchat import usage_enough
 from .utils.memory import Message, get_memory_data
 
 nb_config = get_driver().config
+
+
+class FakeEvent(Event):
+    """伪造事件类，用于模拟用户事件"""
+
+    user_id: int
+
+    @override
+    def get_user_id(self) -> str:
+        return str(self.user_id)
 
 
 async def is_bot_enabled(event: Event) -> bool:
@@ -71,8 +83,6 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
 
     message = event.get_message()
     message_text = message.extract_plain_text().strip()
-
-    # 如果不是群聊消息，直接返回 True
     if not isinstance(event, GroupMessageEvent):
         return True
 
@@ -80,12 +90,18 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
     if "at" in config_manager.config.autoreply.keywords:  # 如果配置为 at 开头
         if event.is_tome():  # 判断是否 @ 了机器人
             return True
-    elif any(
-        message_text.startswith(kw)
-        for kw in config_manager.config.autoreply.keywords
-        if kw != "at"
-    ):  # 如果消息以关键字开头
-        return True
+    if config_manager.config.autoreply.keywords_mode == "starts_with":
+        if message_text.startswith(
+            tuple(i for i in config_manager.config.autoreply.keywords if i != "at")
+        ):
+            return True
+    elif config_manager.config.autoreply.keywords_mode == "contains":
+        if any(
+            keyword in message_text
+            for keyword in config_manager.config.autoreply.keywords
+            if keyword != "at"
+        ):
+            return True
 
     # 判断是否启用了AutoReply模式
     if config_manager.config.autoreply.enable:
@@ -162,4 +178,22 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
         await memory_data.save(event)
 
     # 默认返回 False
+    return False
+
+
+async def should_respond_with_usage_check(event: MessageEvent, bot: Bot) -> bool:
+    if await should_respond_to_message(event, bot):
+        if not await usage_enough(event) or not (
+            await usage_enough(
+                FakeEvent(time=0, self_id=0, post_type="", user_id=event.user_id)
+            )
+            if isinstance(event, GroupMessageEvent)
+            else True
+        ):
+            if event.is_tome():
+                with contextlib.suppress(Exception):
+                    await bot.send(event, "今天的聊天额度已经用完了～")
+                    return False
+            return False
+        return True
     return False

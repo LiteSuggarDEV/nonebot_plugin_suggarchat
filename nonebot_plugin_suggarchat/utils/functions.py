@@ -73,9 +73,7 @@ def format_datetime_timestamp(time: int) -> str:
 
 
 # 在文件顶部预编译正则表达式
-SENTENCE_DELIMITER_PATTERN = re.compile(
-    r'([。！？!?~\.;；:：\n]+)[""\'\'"\s]*', re.UNICODE
-)
+SENTENCE_DELIMITER_PATTERN = re.compile(r'([。！？!?;；\n]+)[""\'\'"\s]*', re.UNICODE)
 
 
 def split_message_into_chats(text: str, max_length: int = 100) -> list[str]:
@@ -169,7 +167,7 @@ async def synthesize_forward_message(forward_msg: dict, bot: Bot) -> str:
                         case "forward":
                             result += f"\\（合并转发:{await synthesize_forward_message(await bot.get_forward_msg(id=segments['data']['id']), bot)}）\\"
         except Exception as e:
-            logger.opt(colors=True, exception=e).error(f"解析消息时出错：{e!s}'")
+            logger.opt(colors=True, exception=e).warning(f"解析消息时出错：{e!s}'")
             result += f"\n<!--该消息段无法被解析--><origin>{segment!s}</origin>"
         result += "\n"
     return result

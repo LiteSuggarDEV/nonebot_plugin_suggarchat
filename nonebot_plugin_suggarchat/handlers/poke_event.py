@@ -17,11 +17,11 @@ from ..utils.functions import (
     get_friend_name,
     split_message_into_chats,
 )
-from ..utils.libchat import get_chat, usage_enough
+from ..utils.libchat import get_chat, get_tokens, usage_enough
 from ..utils.lock import get_group_lock, get_private_lock
 from ..utils.memory import Message, get_memory_data
 from ..utils.models import InsightsModel
-from .chat import FakeEvent, get_tokens
+from .chat import FakeEvent
 
 
 async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
@@ -59,11 +59,11 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
 
         # 构造发送的消息
         send_messages = [
-            {"role": "system", "content": f"{config_manager.group_train}"},
-            {
-                "role": "user",
-                "content": f"\\（戳一戳消息\\){user_name} (QQ:{event.user_id}) 戳了戳你",
-            },
+            Message(role="system", content=f"{config_manager.group_train}"),
+            Message(
+                role="user",
+                content=f"\\（戳一戳消息\\){user_name} (QQ:{event.user_id}) 戳了戳你",
+            ),
         ]
 
         # 处理戳一戳事件并获取回复
@@ -91,11 +91,11 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
 
         name = await get_friend_name(event.user_id, bot)  # 获取好友信息
         send_messages = [
-            {"role": "system", "content": f"{config_manager.private_train}"},
-            {
-                "role": "user",
-                "content": f" \\（戳一戳消息\\) {name}(QQ:{event.user_id}) 戳了戳你",
-            },
+            Message(role="system", content=f"{config_manager.group_train}"),
+            Message(
+                role="user",
+                content=f"\\（戳一戳消息\\){name} (QQ:{event.user_id}) 戳了戳你",
+            ),
         ]
 
         # 处理戳一戳事件并获取回复
@@ -113,7 +113,7 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
             poke_event = BeforePokeEvent(
                 nbevent=event,
                 send_message=send_messages,
-                model_response=[""],
+                model_response="",
                 user_id=event.user_id,
             )
             await MatcherManager.trigger_event(poke_event, event, bot)
@@ -158,7 +158,7 @@ async def poke_event(event: PokeNotifyEvent, bot: Bot, matcher: Matcher):
             poke_event = PokeEvent(
                 nbevent=event,
                 send_message=send_messages,
-                model_response=[response.content],
+                model_response=response.content,
                 user_id=event.user_id,
             )
             await MatcherManager.trigger_event(poke_event, event, bot)
