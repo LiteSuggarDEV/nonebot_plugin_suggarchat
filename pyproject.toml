@@ -20,6 +20,7 @@ dependencies = [
     "importlib>=1.0.4",
     "watchfiles>=0.18.0",
     "nonebot-plugin-orm>=0.8.2",
+    "fastmcp>=2.13.1",
 ]
 requires-python = ">=3.10, <3.14"
 readme = "README.md"

@@ -10,7 +10,7 @@
       <img src="https://img.shields.io/pypi/v/nonebot-plugin-suggarchat?color=blue&style=flat-square" alt="PyPI Version">
     </a>
     <a href="https://www.python.org/">
-      <img src="https://img.shields.io/badge/python-3.9+-blue?logo=python&style=flat-square" alt="Python Version">
+      <img src="https://img.shields.io/badge/python-3.10+-blue?logo=python&style=flat-square" alt="Python Version">
     </a>
     <a href="https://nonebot.dev/">
       <img src="https://img.shields.io/badge/nonebot2-2.4.0+-blue?style=flat-square" alt="NoneBot Version">
@@ -37,7 +37,8 @@
 - ✅ 多角色热切换
 - ✅ 会话生命周期管理
 - ✅ 聊天模型切换
-- ✅ 多模态模型支持
+- ✅ Agent工作流
+- ✅ MCP支持
 - ✅ Function Calling支持
   - ✅ 内置聊天不良内容检测
   - ✅ 基于Cookie检测的提示词防泄露

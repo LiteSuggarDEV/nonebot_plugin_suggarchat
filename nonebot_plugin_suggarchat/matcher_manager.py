@@ -22,6 +22,7 @@ from .handlers.disable import disable
 from .handlers.enable import enable
 from .handlers.fakepeople_switch import switch
 from .handlers.insights import insights
+from .handlers.mcp import mcp_command
 from .handlers.poke_event import poke_event
 from .handlers.preset_test import t_preset
 from .handlers.presets import presets
@@ -145,3 +146,9 @@ base_matcher.on_command(
     block=True,
     priority=10,
 ).append_handler(t_preset)
+
+base_matcher.on_command(
+    "mcp",
+    aliases={"MCP管理"},
+    permission=is_bot_admin,
+).append_handler(mcp_command)
