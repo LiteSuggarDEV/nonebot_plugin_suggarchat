@@ -25,7 +25,7 @@ class ToolsManager:
         return False if name in self._disabled_tools else name in self._models
 
     def get_tool(self, name: str, default: T = None) -> ToolData | T | None:
-        return default if not self.has_tool(name) else self._models.get(name, default)
+        return self._models.get(name, default) if self.has_tool(name) else default
 
     def get_tool_meta(
         self, name: str, default: T | None = None
