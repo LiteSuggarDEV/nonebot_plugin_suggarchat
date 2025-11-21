@@ -489,12 +489,13 @@ async def chat(event: MessageEvent, matcher: Matcher, bot: Bot):
             if (
                 isinstance(message.content, list)
                 and not is_multimodal
-                and message.role == "user"
+                and message.role in ("user", "assistant")
             ):
                 message_text = ""
                 for content_part in message.content:
-                    if content_part.type == "text":
-                        message_text += content_part.text
+                    # if isinstance(content_part)
+                    if content_part["type"] == "text":
+                        message_text += content_part["text"]
                 message.content = message_text
 
         # Enforce memory length limit
