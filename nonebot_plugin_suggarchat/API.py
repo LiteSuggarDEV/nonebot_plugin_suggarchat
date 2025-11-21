@@ -18,6 +18,7 @@ from .utils.libchat import (
     tools_caller,
 )
 from .utils.llm_tools.manager import ToolsManager, on_tools
+from .utils.llm_tools.mcp_client import MCP_SERVER_SCRIPT_TYPE, ClientManager, MCPClient
 from .utils.llm_tools.models import (
     FunctionDefinitionSchema,
     FunctionParametersSchema,
@@ -198,14 +199,17 @@ class Chat:
 
 
 __all__ = [
+    "MCP_SERVER_SCRIPT_TYPE",
     "AdapterManager",
     "Admin",
     "Chat",
+    "ClientManager",
     "ConfigManager",
     "FunctionDefinitionSchema",
     "FunctionParametersSchema",
     "FunctionPropertySchema",
     "InsightsModel",
+    "MCPClient",
     "Menu",
     "ModelAdapter",
     "Tokenizer",

@@ -90,12 +90,27 @@ class ModelPreset(BaseModel):
 
 
 class ToolsConfig(BaseModel):
-    enable_tools: bool = True
+    enable_tools: bool = True  # 此选项不影响内容审查是否启用。
     enable_report: bool = True
+    report_exclude_system_prompt: bool = (
+        False  # 默认情况下，内容审查会检查系统提示和上下文。
+    )
+    report_exclude_context: bool = False  # 默认情况下，内容审查会检查系统提示和上下文。
     report_then_block: bool = True
     require_tools: bool = False
     agent_mode_enable: bool = False  # 使用实验性的智能体模式
     agent_tool_call_limit: int = 10  # 智能体模式下的工具调用限制
+    agent_thought_mode: Literal[
+        "reasoning", "chat", "reasoning-required", "reasoning-optional"
+    ] = (
+        "chat"  # 使用实验性的智能体模式下的思考模式,
+        # reasoning 模式会先执行思考过程，然后执行任务;
+        # reasoning-required 要求每次Tool Calling都执行任务分析。
+        # reasoning-optional 不要求reasoning，但是允许reasoning
+        # chat 模式会直接执行任务。
+    )
+    agent_mcp_client_enable: bool = False
+    agent_mcp_server_scripts: list[str] = []
 
 
 class SessionConfig(BaseModel):
