@@ -8,7 +8,7 @@ from __future__ import annotations
 from nonebot import logger
 
 from .chatmanager import chat_manager
-from .config import Config, ConfigManager, config_manager
+from .config import Config, ConfigManager
 from .on_event import on_before_chat, on_before_poke, on_chat, on_event, on_poke
 from .utils.admin import send_to_admin
 from .utils.libchat import (
@@ -71,7 +71,7 @@ class Admin:
         """
         构造函数
         """
-        self.config = config_manager.ins_config
+        self.config = ConfigManager().ins_config
 
     async def send_with(self, msg: str) -> "Admin":
         """
@@ -139,8 +139,8 @@ class Admin:
         return self._save_config_to_toml()
 
     def _save_config_to_toml(self):
-        self.config.save_to_toml(config_manager.toml_config)
-        self.config = config_manager.ins_config
+        self.config.save_to_toml(ConfigManager().toml_config)
+        self.config = ConfigManager().ins_config
         return self
 
 
@@ -155,7 +155,7 @@ class Chat:
         """
         构造函数
         """
-        self.config = config_manager.ins_config
+        self.config = ConfigManager().ins_config
 
     async def get_msg(self, prompt: str, message: list):
         """
@@ -217,7 +217,6 @@ __all__ = [
     "ToolData",
     "ToolFunctionSchema",
     "ToolsManager",
-    "config_manager",
     "get_memory_data",
     "hybrid_token_count",
     "on_before_chat",

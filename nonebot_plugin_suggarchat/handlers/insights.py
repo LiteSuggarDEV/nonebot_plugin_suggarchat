@@ -8,7 +8,7 @@ from nonebot.matcher import Matcher
 from nonebot.params import CommandArg
 
 from ..check_rule import is_bot_admin
-from ..config import config_manager
+from ..config import ConfigManager
 from ..utils.memory import get_memory_data
 from ..utils.models import InsightsModel
 
@@ -17,7 +17,7 @@ async def insights(event: MessageEvent, matcher: Matcher, args: Message = Comman
     msg = "未知参数。"
     if not (arg := args.extract_plain_text().strip()):
         data = await get_memory_data(user_id=event.user_id)
-        config = config_manager.config
+        config = ConfigManager().config
         user_limit = config.usage_limit.user_daily_limit
         user_token_limit = config.usage_limit.user_daily_token_limit
         group_limit = config.usage_limit.group_daily_limit

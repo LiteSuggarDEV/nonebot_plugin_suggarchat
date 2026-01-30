@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import time
 import typing
+from collections.abc import Iterable, Sequence
+from copy import deepcopy
 from datetime import datetime, timedelta
 from typing import Any, Generic, Literal, overload
 
@@ -14,6 +17,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -29,10 +33,11 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 from typing_extensions import Self
 
-from ..config import config_manager
+from ..config import ConfigManager
 from .lock import database_lock
 
 # Pydantic 模型
+
 T = typing.TypeVar("T", None, str, None | typing.Literal[""])
 T_INT = typing.TypeVar("T_INT", int, None)
 
@@ -92,10 +97,22 @@ class UniResponse(
 ):
     """统一响应格式"""
 
-    role: Literal["assistant", "function"] = "assistant"
+    role: Literal["assistant"] = Field(
+        default="assistant",  # 不管有没有content/tool_call，role都是assistant
+        description="角色",
+    )
+
     usage: UniResponseUsage | None = None
-    content: T
-    tool_calls: T_TOOL
+    content: T = Field(
+        ...,
+        description="内容",
+        exclude_if=lambda x: x is None,
+    )
+    tool_calls: T_TOOL = Field(
+        ...,
+        description="工具调用结果",
+        exclude_if=lambda x: x is None,
+    )
 
 
 class ImageUrl(BaseModel):
@@ -115,27 +132,192 @@ class TextContent(Content):
     text: str = Field(..., description="文本内容")
 
 
-_T = typing.TypeVar("_T", str, None, str | None, list)
+CT_MAP: dict[str, type[Content]] = {
+    "image_url": ImageContent,
+    "text": TextContent,
+}
+
+_T = typing.TypeVar(
+    "_T",
+    str,
+    None,
+    list[TextContent],
+    list[TextContent | ImageContent],
+    list[TextContent | ImageContent] | str,
+)
 
 
 class Message(BaseModel, Generic[_T]):
-    role: Literal["user", "assistant", "system"] = Field(
-        default="assistant", description="角色"
+    role: Literal["user", "assistant", "system"] = Field(..., description="角色")
+    content: _T = Field(..., description="内容")
+    tool_calls: list[ToolCall] | None = Field(
+        default=None, description="工具调用", exclude_if=lambda x: x is None
     )
-    content: list[TextContent | ImageContent] | _T = Field(..., description="内容")
-    tool_calls: list[ToolCall] | None = Field(default=None, description="工具调用")
 
 
 class ToolResult(BaseModel):
-    role: Literal["tool"] = Field(default="tool", description="角色")
+    role: Literal["tool"] = Field(..., description="角色")
     name: str = Field(..., description="工具名称")
     content: str = Field(..., description="工具返回内容")
     tool_call_id: str = Field(..., description="工具调用ID")
 
 
 class MemoryModel(BaseModel):
-    messages: list[Message | ToolResult] = Field(default_factory=list)
+    messages: list[SEND_MESSAGES_ITEM] = Field(default_factory=list)
     time: float = Field(default_factory=time.time, description="时间戳")
+    abstract: str = Field(default="", description="摘要")
+
+
+class SessionMemoryModel(MemoryModel):
+    id: int | None = Field(None, description="会话在数据库的ID")
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.__dict__["_dirty"] = False
+        if "messages" in data:
+            self.__dict__["_dirty"] = True
+
+    def __setattr__(self, name, value):
+        if name == "messages":
+            self.__dict__["_dirty"] = True
+        object.__setattr__(self, name, value)
+
+    def __getattribute__(self, name):
+        # 如果获取的是messages属性，则标记为dirty
+        if name == "messages":
+            value = object.__getattribute__(self, name)
+            with contextlib.suppress(Exception):
+                object.__setattr__(self, "_dirty", True)
+
+            return value
+        else:
+            return object.__getattribute__(self, name)
+
+    @property
+    def __dirty__(self):
+        """获取dirty状态"""
+        return self.__dict__.get("_dirty", False)
+
+    @__dirty__.setter
+    def __dirty__(self, value: bool):
+        """设置dirty状态"""
+        object.__setattr__(self, "_dirty", value)
+
+    async def delete(self, arg_session: AsyncSession | None = None):
+        if self.id is None:
+            raise ValueError("无法删除未保存的模型")
+
+        async with database_lock(self.id):
+            session = arg_session or get_session()
+
+            stmt = delete(MemorySessions).where(MemorySessions.id == self.id)
+            async with contextlib.nullcontext() if arg_session else session:
+                await session.execute(stmt)
+            if not arg_session:
+                await session.commit()
+
+    async def save(
+        self,
+        ins_id: int = 0,
+        is_group: bool = False,
+        arg_session: AsyncSession | None = None,
+    ) -> None:
+        # 只有在dirty状态下才保存
+        if not self.__dirty__:
+            return
+        session = arg_session or get_session()
+        async with contextlib.nullcontext() if arg_session else session:
+            if self.id is not None:
+                stmt = (
+                    update(MemorySessions)
+                    .where(MemorySessions.id == self.id)
+                    .values(data=self.model_dump(exclude={"id"}))
+                )
+                await session.execute(stmt)
+            elif ins_id:
+                session.add(
+                    MemorySessions(
+                        data=self.model_dump(exclude={"id"}),
+                        created_at=time.time(),
+                        is_group=is_group,
+                        ins_id=ins_id,
+                    )
+                )
+            else:
+                raise ValueError(
+                    "Neither id nor ins_id provided; cannot persist memory session"
+                )
+            if not arg_session:
+                await session.commit()
+
+        # 保存后重置dirty标志
+        self.__dirty__ = False
+
+
+SEND_MESSAGES_ITEM = Message | ToolResult
+SEND_MESSAGES = list[SEND_MESSAGES_ITEM]
+
+
+class SendMessageWrap(Iterable[SEND_MESSAGES_ITEM]):
+    """SEND_MESSAGES的包装类"""
+
+    train: Message[str]  # system 消息
+    memory: SEND_MESSAGES  # 无system消息的消息
+    user_query: Message
+
+    def __init__(
+        self, train: dict[str, str] | Message[str], memory: SEND_MESSAGES | MemoryModel
+    ):
+        self.train = (
+            train if isinstance(train, Message) else Message.model_validate(train)
+        )
+        self.memory = memory if isinstance(memory, list) else memory.messages
+        query = self.memory[-1]
+        if isinstance(query, ToolResult) or query.role != "user":
+            raise ValueError("Invalid query message, expecting user message!")
+        self.user_query = query
+        self.memory.pop()
+
+    @classmethod
+    def validate_messages(cls, messages: SEND_MESSAGES) -> SendMessageWrap:
+        train = messages[0]
+        if train.role != "system":  # Fall back to match the first system message
+            for idx, msg in enumerate(messages):
+                if msg.role == "system":
+                    train = msg
+                    messages.pop(idx)
+                    memory = messages
+                    break
+            else:
+                raise ValueError("Invalid messages, expecting system message!")
+        else:
+            memory = messages[1:]
+        return cls(train, memory)
+
+    def __len__(self) -> int:
+        return len(self.memory) + 2
+
+    def __iter__(self) -> typing.Iterator[SEND_MESSAGES_ITEM]:
+        yield self.train
+        yield from self.memory
+        yield self.user_query
+
+    def copy(self) -> SendMessageWrap:
+        return SendMessageWrap(
+            deepcopy(self.train), deepcopy([*self.memory, self.user_query])
+        )
+
+    def unwrap(self) -> SEND_MESSAGES:
+        return [self.train, *self.memory, self.user_query]
+
+    def get_train(self) -> Message[str]:
+        return self.train
+
+    def get_memory(self) -> SEND_MESSAGES:
+        return self.memory
+
+    def get_user_query(self) -> Message:
+        return self.user_query
 
 
 class InsightsModel(BaseModel):
@@ -147,12 +329,25 @@ class InsightsModel(BaseModel):
     usage_count: int = Field(..., description="聊天请求次数")
 
     @classmethod
+    async def get_all(cls) -> list[Self]:
+        async with database_lock():
+            async with get_session() as session:
+                await cls._delete_expired(
+                    days=ConfigManager().config.usage_limit.global_insights_expire_days,
+                    session=session,
+                )
+                stmt = select(GlobalInsights)
+                insights = (await session.execute(stmt)).scalars().all()
+                session.add_all(insights)
+                return [cls.model_validate(x, from_attributes=True) for x in insights]
+
+    @classmethod
     async def get(cls) -> Self:
         date_now = datetime.now().strftime("%Y-%m-%d")
         async with database_lock(date_now):
             async with get_session() as session:
                 await cls._delete_expired(
-                    days=config_manager.config.usage_limit.global_insights_expire_days,
+                    days=ConfigManager().config.usage_limit.global_insights_expire_days,
                     session=session,
                 )
                 if (
@@ -182,7 +377,7 @@ class InsightsModel(BaseModel):
         async with database_lock(self.date):
             async with get_session() as session:
                 await self._delete_expired(
-                    days=config_manager.config.usage_limit.global_insights_expire_days,
+                    days=ConfigManager().config.usage_limit.global_insights_expire_days,
                     session=session,
                 )
                 stmt = select(GlobalInsights).where(GlobalInsights.date == self.date)
@@ -212,7 +407,7 @@ class InsightsModel(BaseModel):
                     await session.commit()
 
     @staticmethod
-    async def _delete_expired(*, days: int, session: AsyncSession) -> int:
+    async def _delete_expired(*, days: int, session: AsyncSession) -> None:
         """
         删除过期的记录
 
@@ -226,9 +421,8 @@ class InsightsModel(BaseModel):
         stmt = delete(GlobalInsights).where(
             GlobalInsights.date < cutoff_date.strftime("%Y-%m-%d")
         )
-        result = await session.execute(stmt)
+        await session.execute(stmt)
         await session.commit()
-        return result.rowcount
 
 
 # Sqlalchemy 模型
@@ -250,6 +444,70 @@ class GlobalInsights(Model):
     usage_count: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class MemorySessions(Model):
+    __tablename__ = "suggarchat_memory_sessions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ins_id: Mapped[int] = mapped_column(
+        ForeignKey("suggarchat_memory_data.ins_id"), nullable=False
+    )
+    is_group: Mapped[bool] = mapped_column(
+        ForeignKey("suggarchat_memory_data.is_group"),
+        nullable=False,
+        default=False,
+    )
+    created_at: Mapped[float] = mapped_column(Float, nullable=False)
+    data: Mapped[dict[str, Any]] = mapped_column(
+        JSON, nullable=False, server_default=text("'{}'")
+    )
+    __table_args__ = (
+        Index("idx_sessions_ins_id", "ins_id"),
+        Index("idx_sessions_is_group", "is_group"),
+        Index("idx_sessions_created_at", "created_at"),
+    )
+
+    @classmethod
+    async def _expire(cls, ins_id: int, is_group: bool, keep_count: int = 20):
+        """
+        保留特定数量的sessions，移除多余的会话记录
+
+        Args:
+            session: 数据库会话
+            ins_id: 实例ID
+            is_group: 是否为群组
+            keep_count: 要保留的会话数量，默认为20
+        """
+        # 查询指定ins_id和is_group的所有会话，按创建时间倒序排列
+        async with get_session() as session:
+            stmt = (
+                select(cls.id)
+                .where(cls.ins_id == ins_id, cls.is_group == is_group)
+                .order_by(cls.created_at.desc())
+                .offset(keep_count)  # 跳过要保留的数量，获取需要删除的记录
+            )
+
+            result = await session.execute(stmt)
+            ids_to_delete = [row[0] for row in result.fetchall()]
+
+            if ids_to_delete:
+                # 删除超过保留数量的会话记录
+                delete_stmt = delete(cls).where(cls.id.in_(ids_to_delete))
+                await session.execute(delete_stmt)
+
+                # 提交更改
+                await session.commit()
+
+    @classmethod
+    async def get(
+        cls, session: AsyncSession, ins_id: int, is_group: bool
+    ) -> Sequence[Self]:
+        async with database_lock(ins_id, is_group):
+            await cls._expire(ins_id, is_group)
+            stmt = select(cls).where(cls.ins_id == ins_id, cls.is_group == is_group)
+            data = (await session.execute(stmt)).scalars().all()
+            session.add_all(data)
+            return data
+
+
 class Memory(Model):
     __tablename__ = "suggarchat_memory_data"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -260,12 +518,6 @@ class Memory(Model):
         default=MemoryModel().model_dump(),
         nullable=False,
         server_default=text("'{}'"),
-    )
-    sessions_json: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSON,
-        default=[],
-        nullable=False,
-        server_default=text("'[]'"),
     )
     time: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.now, nullable=False
@@ -303,6 +555,41 @@ class GroupConfig(Model):
     )
 
 
+async def create_data(
+    *, session: AsyncSession, ins_id: int, is_group: bool, for_update: bool = False
+) -> Memory:
+    stmt = insert(Memory).values(ins_id=ins_id, is_group=is_group)
+    await session.execute(stmt)
+    await session.commit()
+    stmt = select(Memory).where(Memory.ins_id == ins_id, Memory.is_group == is_group)
+    stmt = stmt.with_for_update() if for_update else stmt
+    memory = (await session.execute(stmt)).scalar_one()
+    return memory
+
+
+async def create_group_config(*, ins_id: int, for_update: bool = False) -> GroupConfig:
+    async with get_session() as session:
+        stmt = insert(GroupConfig).values(group_id=ins_id)
+        await session.execute(stmt)
+        await session.commit()
+        stmt = select(GroupConfig).where(GroupConfig.group_id == ins_id)
+        stmt = stmt.with_for_update() if for_update else stmt
+        group_config = (await session.execute(stmt)).scalar_one()
+        return group_config
+
+
+async def get_or_create_group_config(
+    session: AsyncSession, ins_id: int, for_update: bool = False
+) -> GroupConfig:
+    stmt = select(GroupConfig).where(GroupConfig.group_id == ins_id)
+    stmt = stmt.with_for_update() if for_update else stmt
+    result = await session.execute(stmt)
+    if not (group_config := result.scalar_one_or_none()):
+        group_config = await create_group_config(ins_id=ins_id, for_update=for_update)
+    session.add(group_config)
+    return group_config
+
+
 @overload
 async def get_or_create_data(
     *, session: AsyncSession, ins_id: int, for_update: bool = False
@@ -331,25 +618,20 @@ async def get_or_create_data(
         stmt = stmt.with_for_update() if for_update else stmt
         result = await session.execute(stmt)
         if not (memory := result.scalar_one_or_none()):
-            stmt = insert(Memory).values(ins_id=ins_id, is_group=is_group)
-            await session.execute(stmt)
-            await session.commit()
-            stmt = select(Memory).where(
-                Memory.ins_id == ins_id, Memory.is_group == is_group
+            memory = await create_data(
+                session=session, ins_id=ins_id, is_group=is_group, for_update=for_update
             )
-            stmt = stmt.with_for_update() if for_update else stmt
-            memory = (await session.execute(stmt)).scalar_one()
-        session.add(memory)
+            session.add(memory)
+        else:
+            session.add(memory)
         if not is_group:
             return memory
         stmt = select(GroupConfig).where(GroupConfig.group_id == ins_id)
         stmt = stmt.with_for_update() if for_update else stmt
         result = await session.execute(stmt)
         if not (group_config := result.scalar_one_or_none()):
-            stmt = insert(GroupConfig).values(group_id=ins_id)
-            await session.execute(stmt)
-            await session.commit()
-            stmt = select(GroupConfig).where(GroupConfig.group_id == ins_id)
-            group_config = (await session.execute(stmt)).scalar_one()
+            group_config = await get_or_create_group_config(
+                session=session, ins_id=ins_id, for_update=for_update
+            )
         session.add(group_config)
         return group_config, memory

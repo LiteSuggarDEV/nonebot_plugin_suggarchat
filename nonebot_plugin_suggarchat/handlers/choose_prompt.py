@@ -5,7 +5,7 @@ from nonebot.adapters.onebot.v11.event import MessageEvent
 from nonebot.matcher import Matcher
 from nonebot.params import CommandArg
 
-from ..config import config_manager
+from ..config import ConfigManager
 
 
 async def choose_prompt(
@@ -16,39 +16,39 @@ async def choose_prompt(
     async def display_current_prompts() -> None:
         """显示当前群组和私聊的提示词设置"""
         msg = (
-            f"当前群组的提示词预设：{config_manager.config.group_prompt_character}\n"
-            f"当前私聊的提示词预设：{config_manager.config.private_prompt_character}"
+            f"当前群组的提示词预设：{ConfigManager().config.group_prompt_character}\n"
+            f"当前私聊的提示词预设：{ConfigManager().config.private_prompt_character}"
         )
         await matcher.finish(msg)
 
     async def handle_group_prompt(arg_list: list[str]) -> None:
         """处理群组提示词设置"""
         if len(arg_list) >= 2:
-            for i in (await config_manager.get_prompts()).group:
+            for i in (await ConfigManager().get_prompts()).group:
                 if i.name == arg_list[1]:
-                    config_manager.ins_config.group_prompt_character = i.name
-                    await config_manager.load_prompt()
-                    await config_manager.save_config()
+                    ConfigManager().ins_config.group_prompt_character = i.name
+                    await ConfigManager().load_prompt()
+                    await ConfigManager().save_config()
                     await matcher.finish(f"已设置群组提示词为：{i.name}")
             await matcher.finish("未找到预设，请输入/choose_prompt group查看预设列表")
         else:
             await list_available_prompts(
-                (await config_manager.get_prompts()).group, "group"
+                (await ConfigManager().get_prompts()).group, "group"
             )
 
     async def handle_private_prompt(arg_list: list[str]) -> None:
         """处理私聊提示词设置"""
         if len(arg_list) >= 2:
-            for i in (await config_manager.get_prompts()).private:
+            for i in (await ConfigManager().get_prompts()).private:
                 if i.name == arg_list[1]:
-                    config_manager.ins_config.private_prompt_character = i.name
-                    await config_manager.load_prompt()
-                    await config_manager.save_config()
+                    ConfigManager().ins_config.private_prompt_character = i.name
+                    await ConfigManager().load_prompt()
+                    await ConfigManager().save_config()
                     await matcher.finish(f"已设置私聊提示词为：{i.name}")
             await matcher.finish("未找到预设，请输入/choose_prompt private查看预设列表")
         else:
             await list_available_prompts(
-                (await config_manager.get_prompts()).private, "private"
+                (await ConfigManager().get_prompts()).private, "private"
             )
 
     async def list_available_prompts(prompts: list[Any], prompt_type: str) -> None:
@@ -60,11 +60,11 @@ async def choose_prompt(
                 " (当前）>"
                 if (
                     prompt_type == "group"
-                    and i.name == config_manager.config.group_prompt_character
+                    and i.name == ConfigManager().config.group_prompt_character
                 )
                 or (
                     prompt_type == "private"
-                    and i.name == config_manager.config.private_prompt_character
+                    and i.name == ConfigManager().config.private_prompt_character
                 )
                 else ""
             )

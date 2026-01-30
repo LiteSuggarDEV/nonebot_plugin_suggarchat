@@ -2,9 +2,10 @@ from importlib import metadata
 
 from nonebot import get_driver, logger
 
+from nonebot_plugin_suggarchat.utils import logging
+
 from . import config
-from .chatmanager import chat_manager
-from .config import config_manager
+from .config import ConfigManager
 from .hook_manager import run_hooks
 
 driver = get_driver()
@@ -35,9 +36,8 @@ async def onEnable():
         logger.warning(
             "无法获取到版本！SuggarChat似乎并没有以pypi包方式运行，Debug模式已自动开启。"
         )
-        chat_manager.debug = True
+        logging.debug = True
     logger.info(__LOGO.format(version=kernel_version))
     logger.debug("加载配置文件...")
-    await config_manager.load()
-    config_manager.init_watch()
+    await ConfigManager().load()
     logger.debug("成功启动！")

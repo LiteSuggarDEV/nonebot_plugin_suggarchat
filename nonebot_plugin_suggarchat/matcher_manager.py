@@ -4,6 +4,7 @@
 """
 
 from nonebot import MatcherGroup, on_command
+from nonebot.permission import Permission
 from nonebot.rule import Rule
 
 from .check_rule import (
@@ -14,7 +15,8 @@ from .check_rule import (
     should_respond_with_usage_check,
 )
 from .handlers.add_notices import add_notices
-from .handlers.chat import chat
+from .handlers.chat import entry as chat
+from .handlers.chatobj import chatobj_manage
 from .handlers.choose_prompt import choose_prompt
 from .handlers.debug_switchs import debug_switchs
 from .handlers.del_memory import del_memory
@@ -22,7 +24,9 @@ from .handlers.disable import disable
 from .handlers.enable import enable
 from .handlers.fakepeople_switch import switch
 from .handlers.insights import insights
-from .handlers.mcp import mcp_command
+from .handlers.mcp import (
+    mcp_command,
+)
 from .handlers.poke_event import poke_event
 from .handlers.preset_test import t_preset
 from .handlers.presets import presets
@@ -30,6 +34,7 @@ from .handlers.prompt import prompt
 from .handlers.recall import recall
 from .handlers.sessions import sessions
 from .handlers.set_preset import set_preset
+from .handlers.show_abstract import abstract_show
 
 # 创建基础匹配器组，所有匹配器都需满足is_bot_enabled规则
 base_matcher = MatcherGroup(rule=is_bot_enabled)
@@ -57,12 +62,16 @@ base_matcher.on_message(
     rule=Rule(should_respond_with_usage_check, is_bot_enabled),
 ).append_handler(chat)
 
+base_matcher.on_command(
+    "show-abstract",
+    {"abstract"},
+).append_handler(abstract_show)
 # 添加各种命令处理器
 base_matcher.on_command(
     "prompt",
     priority=10,
     block=True,
-    permission=is_group_admin_if_is_in_group,
+    permission=Permission(is_group_admin_if_is_in_group),
 ).append_handler(prompt)
 
 base_matcher.on_command(
@@ -114,7 +123,6 @@ base_matcher.on_command(
     aliases={"失忆", "删除记忆", "删除历史消息", "删除回忆"},
     block=True,
     priority=10,
-    permission=is_group_admin_if_is_in_group,
 ).append_handler(del_memory)
 
 on_command(
@@ -145,6 +153,7 @@ base_matcher.on_command(
     aliases={"测试预设"},
     block=True,
     priority=10,
+    permission=is_bot_admin,
 ).append_handler(t_preset)
 
 base_matcher.on_command(
@@ -152,3 +161,9 @@ base_matcher.on_command(
     aliases={"MCP管理"},
     permission=is_bot_admin,
 ).append_handler(mcp_command)
+
+base_matcher.on_command(
+    "chatobj",
+    aliases={"chat_obj"},
+    permission=is_group_admin_if_is_in_group,
+).append_handler(chatobj_manage)

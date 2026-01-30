@@ -1,17 +1,17 @@
 from nonebot.adapters.onebot.v11 import Bot, MessageEvent
 from nonebot.matcher import Matcher
 
-from ..config import config_manager
+from ..config import ConfigManager
 
 
 async def presets(event: MessageEvent, matcher: Matcher, bot: Bot):
     """处理查看模型预设的事件"""
 
     # 构建包含当前模型预设信息的消息
-    msg = f"模型预设:\n当前配置>>{config_manager.config.preset}\n"
+    msg = f"模型预设:\n当前配置>>{ConfigManager().config.preset}\n"
 
     # 遍历模型列表，添加每个预设的名称和模型信息
-    for i in await config_manager.get_all_presets():
+    for i in await ConfigManager().get_all_presets():
         msg += f"\n预设名称：{i.name}，模型：{i.model}"
 
     # 发送消息并结束处理

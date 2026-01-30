@@ -7,7 +7,7 @@ from nonebot.matcher import Matcher
 from nonebot.params import CommandArg
 
 from ..check_rule import is_bot_admin
-from ..config import config_manager
+from ..config import ConfigManager
 from ..send import send_forward_msg
 from ..utils.libchat import PresetReport, test_presets
 
@@ -22,7 +22,7 @@ async def t_preset(
     if TEST_LOCK.locked():
         await matcher.finish("当前仍然有1个测试任务正在执行，请稍后再试。")
     async with TEST_LOCK:
-        presets = await config_manager.get_all_presets(True)
+        presets = await ConfigManager().get_all_presets(True)
         await matcher.send(
             MessageSegment.text(f"开始测试所有(共计{len(presets)}个)预设...")
         )

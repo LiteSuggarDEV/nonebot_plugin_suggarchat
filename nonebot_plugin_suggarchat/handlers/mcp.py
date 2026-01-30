@@ -9,8 +9,9 @@ from nonebot.adapters.onebot.v11 import (
 from nonebot.matcher import Matcher
 from nonebot.params import CommandArg
 
-from ..builtin_hook import ChatException
-from ..config import config_manager
+from nonebot_plugin_suggarchat.builtin_hook import ChatException
+from nonebot_plugin_suggarchat.config import ConfigManager
+
 from ..send import send_forward_msg
 from ..utils.llm_tools.mcp_client import ClientManager
 
@@ -18,7 +19,7 @@ from ..utils.llm_tools.mcp_client import ClientManager
 async def mcp_command(
     bot: Bot, matcher: Matcher, event: MessageEvent, arg: Message = CommandArg()
 ):
-    arg_list = arg.extract_plain_text().strip().split()
+    arg_list = arg.extract_plain_text().strip().split(maxsplit=1)
     match len(arg_list):
         case 0:
             await matcher.finish(
@@ -34,7 +35,8 @@ async def mcp_command(
                     return await add_mcp_server(matcher, bot, event, arg_list[1])
                 elif arg_list[0] in ("del", "删除"):
                     return await del_mcp_server(matcher, arg_list[1])
-            await matcher.finish("参数数量或类型错误，请检查命令格式。")
+
+    await matcher.finish("参数数量或类型错误，请检查命令格式。")
 
 
 async def mcp_status(bot: Bot, matcher: Matcher, event: MessageEvent, arg: list[str]):
@@ -64,16 +66,16 @@ async def mcp_status(bot: Bot, matcher: Matcher, event: MessageEvent, arg: list[
         await send_forward_msg(
             bot, event, "Amrita-MCP", str(event.self_id), detailed_info
         )
-
-    await matcher.finish(std_txt)
+    else:
+        await matcher.finish(std_txt)
 
 
 async def add_mcp_server(
     matcher: Matcher, bot: Bot, event: MessageEvent, mcp_server: str
 ):
-    if not config_manager.config.llm_config.tools.agent_mcp_client_enable:
+    if not ConfigManager().config.llm_config.tools.agent_mcp_client_enable:
         return
-    config = config_manager.ins_config
+    config = ConfigManager().ins_config
     if not mcp_server:
         await matcher.finish("请输入MCP Server脚本路径")
     if mcp_server in config.llm_config.tools.agent_mcp_server_scripts:
@@ -81,8 +83,8 @@ async def add_mcp_server(
     try:
         await ClientManager().initialize_this(mcp_server)
         config.llm_config.tools.agent_mcp_server_scripts.append(mcp_server)
-        await config_manager.save_config()
-        await matcher.finish("添加成功")
+        await ConfigManager().save_config()
+        await matcher.send("添加成功")
     except Exception as e:
         if isinstance(e, ChatException):
             raise
@@ -91,9 +93,9 @@ async def add_mcp_server(
 
 
 async def del_mcp_server(matcher: Matcher, mcp_server: str):
-    if not config_manager.config.llm_config.tools.agent_mcp_client_enable:
+    if not ConfigManager().config.llm_config.tools.agent_mcp_client_enable:
         return
-    config = config_manager.ins_config
+    config = ConfigManager().ins_config
     if not mcp_server:
         await matcher.finish("请输入要删除的MCP Server")
     if mcp_server not in config.llm_config.tools.agent_mcp_server_scripts:
@@ -101,18 +103,18 @@ async def del_mcp_server(matcher: Matcher, mcp_server: str):
     try:
         await ClientManager().unregister_client(mcp_server)
         config.llm_config.tools.agent_mcp_server_scripts.remove(mcp_server)
-        await config_manager.save_config()
-        await matcher.finish("删除成功")
+        await ConfigManager().save_config()
+        await matcher.send("删除成功")
     except Exception as e:
         logger.opt(exception=e, colors=True).exception(e)
         await matcher.finish("删除失败")
 
 
 async def reload(matcher: Matcher):
-    if not config_manager.config.llm_config.tools.agent_mcp_client_enable:
+    if not ConfigManager().config.llm_config.tools.agent_mcp_client_enable:
         return
     try:
-        await ClientManager().initialize_all()
+        await ClientManager().reinitalize_all()
         await matcher.send("重载成功")
     except Exception as e:
         logger.opt(exception=e, colors=True).exception(e)

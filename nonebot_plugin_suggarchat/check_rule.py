@@ -10,15 +10,20 @@ from nonebot.adapters.onebot.v11.event import (
     GroupMessageEvent,
     MessageEvent,
 )
+from nonebot_plugin_orm import get_session
 from typing_extensions import override
 
-from .config import config_manager
+from nonebot_plugin_suggarchat.utils.libchat import usage_enough
+from nonebot_plugin_suggarchat.utils.lock import get_group_lock, get_private_lock
+from nonebot_plugin_suggarchat.utils.models import TextContent
+
+from .config import ConfigManager
 from .utils.functions import (
     get_current_datetime_timestamp,
     synthesize_message,
 )
-from .utils.libchat import usage_enough
-from .utils.memory import Message, get_memory_data
+from .utils.memory import get_memory_data
+from .utils.models import Message, get_or_create_data
 
 nb_config = get_driver().config
 
@@ -34,15 +39,26 @@ class FakeEvent(Event):
 
 
 async def is_bot_enabled(event: Event) -> bool:
-    if not config_manager.config.enable:
+    if not ConfigManager().config.enable:
         return False
+    elif (
+        hasattr(event, "group_id")
+        and not ConfigManager().config.function.enable_group_chat
+    ):
+        return False
+    else:
+        if not ConfigManager().config.function.enable_private_chat:
+            return False
     with contextlib.suppress(Exception):
         bots = set(nonebot.get_bots().keys())
         if event.get_user_id() in bots:  # 多实例下防止冲突
             return False
-    if hasattr(event, "group_id"):
-        data = await get_memory_data(event)
-        return data.enable
+    if getattr(event, "group_id", None) is not None:
+        async with get_session() as session:
+            data, _ = await get_or_create_data(
+                session=session, ins_id=getattr(event, "group_id"), is_group=True
+            )
+            return data.enable
     return True
 
 
@@ -67,7 +83,7 @@ async def is_group_admin(event: GroupMessageEvent, bot: Bot) -> bool:
 
 
 async def is_bot_admin(event: Event) -> bool:
-    return (int(event.get_user_id())) in config_manager.config.admin.admins + [
+    return (int(event.get_user_id())) in ConfigManager().config.admin.admins + [
         int(user) for user in nb_config.superusers if user.isdigit()
     ]
 
@@ -80,105 +96,118 @@ async def is_group_admin_if_is_in_group(event: MessageEvent, bot: Bot) -> bool:
 
 async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
     """根据配置和消息事件判断是否需要回复"""
-
-    message = event.get_message()
-    message_text = message.extract_plain_text().strip()
-    if not isinstance(event, GroupMessageEvent):
-        return True
-
-    # 判断是否以关键字触发回复
-    if "at" in config_manager.config.autoreply.keywords:  # 如果配置为 at 开头
-        if event.is_tome():  # 判断是否 @ 了机器人
-            return True
-    if config_manager.config.autoreply.keywords_mode == "starts_with":
-        if message_text.startswith(
-            tuple(i for i in config_manager.config.autoreply.keywords if i != "at")
-        ):
-            return True
-    elif config_manager.config.autoreply.keywords_mode == "contains":
-        if any(
-            keyword in message_text
-            for keyword in config_manager.config.autoreply.keywords
-            if keyword != "at"
-        ):
+    lock = (
+        get_group_lock(event.group_id)
+        if isinstance(event, GroupMessageEvent)
+        else get_private_lock(event.user_id)
+    )
+    async with lock:
+        message = event.get_message()
+        message_text = message.extract_plain_text().strip()
+        if not isinstance(event, GroupMessageEvent):
             return True
 
-    # 判断是否启用了AutoReply模式
-    if config_manager.config.autoreply.enable:
-        # 根据概率决定是否回复
-        rand = random.random()
-        rate = config_manager.config.autoreply.probability
+        # 判断是否以关键字触发回复
+        if "at" in ConfigManager().config.autoreply.keywords:  # 如果配置为 at 开头
+            if event.is_tome():  # 判断是否 @ 了机器人
+                return True
+        if ConfigManager().config.autoreply.keywords_mode == "starts_with":
+            if message_text.startswith(
+                tuple(i for i in ConfigManager().config.autoreply.keywords if i != "at")
+            ):
+                return True
+        elif ConfigManager().config.autoreply.keywords_mode == "contains":
+            if any(
+                keyword in message_text
+                for keyword in ConfigManager().config.autoreply.keywords
+                if keyword != "at"
+            ):
+                return True
 
-        # 获取记忆数据
-        memory_data = await get_memory_data(event)
-        if rand <= rate and (
-            config_manager.config.autoreply.global_enable or memory_data.fake_people
-        ):
-            memory_data.timestamp = time.time()
-            await memory_data.save(event)
-            return True
-        # 合成消息内容
-        content = await synthesize_message(message, bot)
+        # 判断是否启用了AutoReply模式
+        if ConfigManager().config.autoreply.enable:
+            # 根据概率决定是否回复
+            rand = random.random()
+            rate = ConfigManager().config.autoreply.probability
 
-        # 获取当前时间戳
-        Date = get_current_datetime_timestamp()
+            # 获取记忆数据
+            memory_data = await get_memory_data(event)
+            if rand <= rate and (
+                ConfigManager().config.autoreply.global_enable
+                or memory_data.fake_people
+            ):
+                memory_data.timestamp = time.time()
+                await memory_data.save(event)
+                return True
+            # 合成消息内容
+            content = await synthesize_message(message, bot)
 
-        # 获取用户角色信息
-        role = (
-            (
-                await bot.get_group_member_info(
-                    group_id=event.group_id, user_id=event.user_id
+            # 获取当前时间戳
+            Date = get_current_datetime_timestamp()
+
+            # 获取用户角色信息
+            role = (
+                (
+                    await bot.get_group_member_info(
+                        group_id=event.group_id, user_id=event.user_id
+                    )
                 )
+                if not event.sender.role
+                else event.sender.role
             )
-            if not event.sender.role
-            else event.sender.role
-        )
-        if role == "admin":
-            role = "群管理员"
-        elif role == "owner":
-            role = "群主"
-        elif role == "member":
-            role = "普通成员"
+            if role == "admin":
+                role = "群管理员"
+            elif role == "owner":
+                role = "群主"
+            elif role == "member":
+                role = "普通成员"
 
-        # 获取用户 ID 和昵称
-        user_id = event.user_id
-        user_name = (
-            (await bot.get_group_member_info(group_id=event.group_id, user_id=user_id))[
-                "nickname"
-            ]
-            if not config_manager.config.function.use_user_nickname
-            else event.sender.nickname
-        )
+            # 获取用户 ID 和昵称
+            user_id = event.user_id
+            user_name = (
+                (
+                    await bot.get_group_member_info(
+                        group_id=event.group_id, user_id=user_id
+                    )
+                )["nickname"]
+                if not ConfigManager().config.function.use_user_nickname
+                else event.sender.nickname
+            )
 
-        # 生成消息内容并记录到记忆
-        content_message = f"[{role}][{Date}][{user_name}（{user_id}）]说:{content}"
-        fwd_msg = Message(role="user", content="<FORWARD_MSG>\n" + content_message)
-        message_l = memory_data.memory.messages
-        if not message_l:
-            message_l.append(fwd_msg)
-        elif not isinstance(message_l[-1].content, str) or message_l[-1].role != "user":
-            message_l.append(fwd_msg)
-        elif not message_l[-1].content.startswith("<FORWARD_MSG>"):
-            message_l.append(fwd_msg)
-        else:
-            message_l[-1].content += "\n" + content_message
-        if len(
-            message_l[-1].content
-        ) > config_manager.config.llm_config.memory_lenth_limit * 10 and isinstance(
-            message_l[-1].content, str
-        ):
-            lines = message_l[-1].content.splitlines(keepends=True)
-            if len(lines) >= 2:
-                # 删除索引为1的第二行
-                del lines[1]
-            message_l[-1].content = "".join(lines)
-        memory_data.memory.messages = message_l
+            # 生成消息内容并记录到记忆
+            content_message = f"[{role}][{Date}][{user_name}（{user_id}）]说:{content}"
+            if (
+                not len(memory_data.memory.messages) > 1
+                or memory_data.memory.messages[-1].role != "user"
+                or (not memory_data.memory.messages[-1].content)
+            ):
+                memory_data.memory.messages.append(
+                    Message(
+                        role="user",
+                        content=[TextContent(type="text", text=content_message)],
+                    )
+                )
+            elif isinstance(memory_data.memory.messages[-1].content, str):
+                memory_data.memory.messages[-1].content = [
+                    TextContent(
+                        type="text", text=str(memory_data.memory.messages[-1].content)
+                    ),
+                    TextContent(type="text", text=content_message),
+                ]
+            else:
+                assert isinstance(memory_data.memory.messages[-1].content, list)
+                if len(memory_data.memory.messages[-1].content) >= 100:
+                    memory_data.memory.messages[
+                        -1
+                    ].content = memory_data.memory.messages[-1].content[-100:]
+                memory_data.memory.messages[-1].content.append(
+                    TextContent(type="text", text=content_message)
+                )
+            # 写入记忆数据
+            await memory_data.save(event)
 
-        # 写入记忆数据
-        await memory_data.save(event)
-
-    # 默认返回 False
-    return False
+        # 默认返回 False
+        return False
 
 
 async def should_respond_with_usage_check(event: MessageEvent, bot: Bot) -> bool:

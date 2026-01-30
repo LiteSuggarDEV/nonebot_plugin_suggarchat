@@ -1,11 +1,14 @@
+from nonebot.adapters.onebot.v11 import Bot, MessageEvent, MessageSegment
 from nonebot.matcher import Matcher
+
+from nonebot_plugin_suggarchat.send import send_forward_msg
 
 from .. import config
 from ..chatmanager import chat_manager
-from ..config import config_manager
+from ..config import ConfigManager
 
 
-async def menu(matcher: Matcher):
+async def menu(bot: Bot, event: MessageEvent, matcher: Matcher):
     """处理聊天菜单命令"""
 
     # 初始化消息内容为默认菜单消息
@@ -16,7 +19,9 @@ async def menu(matcher: Matcher):
         msg += f"\n{menus['cmd']} {menus['describe']}"
 
     # 根据配置添加群聊或私聊的提示信息
-    msg += f"\n{'群内可以at我与我聊天，' if config_manager.config.function.enable_group_chat else '未启用群内聊天，'}{'在私聊可以直接聊天。' if config_manager.config.function.enable_private_chat else '未启用私聊聊天'}\nPowered by SuggarChat V{config.__kernel_version__}"
+    msg += f"\n{'群内可以at我与我聊天，' if ConfigManager().config.function.enable_group_chat else '未启用群内聊天，'}{'在私聊可以直接聊天。' if ConfigManager().config.function.enable_private_chat else '未启用私聊聊天'}\nPowered by SuggarChat V{config.__kernel_version__}"
 
     # 发送最终消息内容
-    await matcher.send(msg)
+    await send_forward_msg(
+        bot, event, "菜单", str(event.self_id), [MessageSegment.text(msg)]
+    )

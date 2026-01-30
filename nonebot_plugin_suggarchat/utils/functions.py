@@ -11,8 +11,9 @@ from nonebot.adapters.onebot.v11 import (
     Message,
 )
 
-from ..chatmanager import chat_manager
-from ..config import config_manager
+from nonebot_plugin_suggarchat.utils.logging import debug_log
+
+from ..config import ConfigManager
 
 
 def remove_think_tag(text: str) -> str:
@@ -183,11 +184,10 @@ async def synthesize_message(message: Message, bot: Bot) -> str:
             content += f"\\（at: @{segment.data.get('name')}(QQ:{segment.data['qq']}))"
         elif (
             segment.type == "forward"
-            and config_manager.config.function.synthesize_forward_message
+            and ConfigManager().config.function.synthesize_forward_message
         ):
-            forward = await bot.get_forward_msg(id=segment.data["id"])
-            if chat_manager.debug:
-                logger.debug(forward)
+            forward: dict[str, Any] = await bot.get_forward_msg(id=segment.data["id"])
+            debug_log(forward)
             content += (
                 " \\（合并转发\n"
                 + await synthesize_forward_message(forward, bot)
