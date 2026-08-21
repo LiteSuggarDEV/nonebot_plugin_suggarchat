@@ -15,7 +15,7 @@ dependencies = [
     "nonebot-plugin-orm>=0.8.3",
     "zipp>=3.23.0",
     "nonebot-plugin-uniconf>=0.1.1",
-    "nonebot-plugin-amrita>=0.1.3",
+    "nonebot-plugin-amrita>=0.2.2",
     "amrita-core>=0.13.0,<0.14.0",
 ]
 requires-python=">=3.10, <3.14"
@@ -35,6 +35,9 @@ dev-dependencies = [
     "nonebot-plugin-orm[default]>=0.8.2",
     "pip>=25.2",
 ]
+
+[tool.setuptools.packages.find]
+include = ["nonebot_plugin_suggarchat*"]
 
 [tool.ruff]
 line-length = 88
