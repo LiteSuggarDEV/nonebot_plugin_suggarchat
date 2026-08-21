@@ -1,18 +1,20 @@
-from nonebot.adapters.onebot.v11 import Bot, MessageEvent
+"""模型预设列表命令"""
+from __future__ import annotations
+
 from nonebot.matcher import Matcher
 
-from ..config import ConfigManager
+from ..config import ModelPreset, config_manager
 
 
-async def presets(event: MessageEvent, matcher: Matcher, bot: Bot):
-    """处理查看模型预设的事件"""
+def _format_preset_line(preset: ModelPreset) -> str:
+    """格式化单个预设行（标记当前使用的）"""
+    marker = "⭐ " if preset.name == config_manager.config.preset else "   "
+    return f"{marker}{preset.name}（{preset.model}）"
 
-    # 构建包含当前模型预设信息的消息
-    msg = f"模型预设:\n当前配置>>{ConfigManager().config.preset}\n"
 
-    # 遍历模型列表，添加每个预设的名称和模型信息
-    for i in await ConfigManager().get_all_presets():
-        msg += f"\n预设名称：{i.name}，模型：{i.model}"
-
-    # 发送消息并结束处理
+async def presets(matcher: Matcher) -> None:
+    """列出所有可用模型"""
+    msg = f"当前模型：{config_manager.config.preset}\n\n可用模型：\n"
+    for preset in await config_manager.get_all_presets():
+        msg += _format_preset_line(preset) + "\n"
     await matcher.finish(msg)

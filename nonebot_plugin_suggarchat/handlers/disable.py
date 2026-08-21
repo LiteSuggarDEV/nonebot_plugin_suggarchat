@@ -1,19 +1,20 @@
 from nonebot import logger
-from nonebot.adapters.onebot.v11 import Bot, GroupMessageEvent
+from nonebot.adapters.onebot.v11 import GroupMessageEvent
 from nonebot.matcher import Matcher
 
-from ..utils.memory import get_memory_data
+from ..utils.app import CachedGroupDataRepository
 
 
-async def disable(bot: Bot, event: GroupMessageEvent, matcher: Matcher):
-    """处理禁用聊天功能的异步函数"""
-    # 记录禁用操作日志
-    logger.debug(f"{event.group_id} disabled")
+async def _set_chat(event: GroupMessageEvent, matcher: Matcher, on: bool) -> None:
+    """开启/关闭群聊"""
+    repo = CachedGroupDataRepository()
+    group_config = await repo.get_group_config(event.group_id)
+    group_config.enable = on
+    await repo.update_group_config(group_config)
+    logger.debug(f"{event.group_id} {'enabled' if on else 'disabled'}")
+    await matcher.send("✅ 已启用聊天功能" if on else "已禁用聊天功能")
 
-    # 获取并更新群聊状态数据
-    data = await get_memory_data(event)
-    data.enable = False
-    await data.save(event)
-    await matcher.send("聊天功能已禁用")
 
-    # 保存更新后的群聊状态数据
+async def disable(event: GroupMessageEvent, matcher: Matcher):
+    """禁用群聊聊天功能"""
+    await _set_chat(event, matcher, False)

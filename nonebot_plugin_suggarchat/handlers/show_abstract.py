@@ -1,12 +1,15 @@
-from nonebot.adapters.onebot.v11 import Bot, MessageEvent
+from nonebot.adapters.onebot.v11 import MessageEvent
 from nonebot.matcher import Matcher
+from nonebot_plugin_amrita import CachedUserDataRepository
 
-from ..check_rule import is_group_admin_if_is_in_group
-from ..utils.memory import get_memory_data
+from ..utils.sql import get_uni_user_id
 
 
-async def abstract_show(bot: Bot, event: MessageEvent, matcher: Matcher):
-    if not await is_group_admin_if_is_in_group(event, bot):
-        return
-    data = await get_memory_data(event)
-    await matcher.send(f"当前对话上下文摘要：{str(data.memory.abstract) or '无'}")
+async def abstract_show(event: MessageEvent, matcher: Matcher):
+    """查看当前会话摘要"""
+    repo = CachedUserDataRepository()
+    data = await repo.get_memory(get_uni_user_id(event))
+    await matcher.send(
+        f"当前对话上下文摘要：\n{str(data.memory_json.abstract) or '无'}"
+    )
+    data.clean()

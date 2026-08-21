@@ -1,18 +1,20 @@
 from nonebot import logger
-from nonebot.adapters.onebot.v11 import Bot, GroupMessageEvent
+from nonebot.adapters.onebot.v11 import GroupMessageEvent
 from nonebot.matcher import Matcher
 
-from ..utils.memory import get_memory_data
+from ..utils.app import CachedGroupDataRepository
 
 
-async def enable(bot: Bot, event: GroupMessageEvent, matcher: Matcher):
-    """处理启用聊天功能的命令"""
+async def _set_chat(event: GroupMessageEvent, matcher: Matcher, on: bool) -> None:
+    """开启/关闭群聊"""
+    repo = CachedGroupDataRepository()
+    group_config = await repo.get_group_config(event.group_id)
+    group_config.enable = on
+    await repo.update_group_config(group_config)
+    logger.debug(f"{event.group_id} {'enabled' if on else 'disabled'}")
+    await matcher.send("✅ 已启用聊天功能" if on else "已禁用聊天功能")
 
-    # 记录日志
-    logger.debug(f"{event.group_id} enabled")
-    # 获取当前群组的记忆数据
-    data = await get_memory_data(event)
-    # 检查记忆数据是否与当前群组匹配
-    data.enable = True
-    await data.save(event)
-    await matcher.send("已启用聊天功能")
+
+async def enable(event: GroupMessageEvent, matcher: Matcher):
+    """启用群聊聊天功能"""
+    await _set_chat(event, matcher, True)

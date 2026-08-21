@@ -1,8 +1,18 @@
+"""本地三级权限规则
+
+- SUPERUSER：``user_id in get_driver().config.superusers``
+- 群管理：群主/群管理员，或 SUPERUSER
+- 普通用户：其他
+"""
+
+from __future__ import annotations
+
 import contextlib
 import random
 import time
 
 import nonebot
+from amrita_core.types import Message, TextContent
 from nonebot import get_driver, logger
 from nonebot.adapters.onebot.v11 import Bot
 from nonebot.adapters.onebot.v11.event import (
@@ -10,26 +20,24 @@ from nonebot.adapters.onebot.v11.event import (
     GroupMessageEvent,
     MessageEvent,
 )
-from nonebot_plugin_orm import get_session
+from nonebot_plugin_amrita.memory import MemorySchema
 from typing_extensions import override
 
-from nonebot_plugin_suggarchat.utils.libchat import usage_enough
-from nonebot_plugin_suggarchat.utils.lock import get_group_lock, get_private_lock
-from nonebot_plugin_suggarchat.utils.models import TextContent
-
-from .config import ConfigManager
+from .config import config_manager
+from .utils.data_access import get_group_config, get_memory, update_memory
 from .utils.functions import (
     get_current_datetime_timestamp,
     synthesize_message,
 )
-from .utils.memory import get_memory_data
-from .utils.models import Message, get_or_create_data
+from .utils.libchat import usage_enough
+from .utils.lock import get_group_lock, get_private_lock
+from .utils.sql import make_uni_id
 
 nb_config = get_driver().config
 
 
 class FakeEvent(Event):
-    """伪造事件类，用于模拟用户事件"""
+    """伪事件类，用于模拟用户事件"""
 
     user_id: int
 
@@ -38,31 +46,44 @@ class FakeEvent(Event):
         return str(self.user_id)
 
 
-async def is_bot_enabled(event: Event) -> bool:
-    if not ConfigManager().config.enable:
+async def is_bot_globally_enabled(event: Event) -> bool:
+    """仅检查全局开关与功能开关，不检查每群的 enable 标记。
+
+    供聊天开关（/chat）等命令使用，避免 /chat off 关闭群聊后
+    is_bot_enabled 失效，导致无法再次执行 /chat on。
+    """
+    gid = getattr(event, "group_id", None)
+    is_in_group = gid is not None
+    if not config_manager.config.enable:
         return False
-    elif (
-        hasattr(event, "group_id")
-        and not ConfigManager().config.function.enable_group_chat
-    ):
+    elif is_in_group and not config_manager.config.function.enable_group_chat:
         return False
-    else:
-        if not ConfigManager().config.function.enable_private_chat:
-            return False
+    elif not is_in_group and not config_manager.config.function.enable_private_chat:
+        return False
     with contextlib.suppress(Exception):
-        bots = set(nonebot.get_bots().keys())
-        if event.get_user_id() in bots:  # 多实例下防止冲突
+        bots = nonebot.get_bots()
+        if event.get_user_id() in bots:
             return False
-    if getattr(event, "group_id", None) is not None:
-        async with get_session() as session:
-            data, _ = await get_or_create_data(
-                session=session, ins_id=getattr(event, "group_id"), is_group=True
-            )
-            return data.enable
     return True
 
 
+async def is_bot_enabled(event: Event) -> bool:
+    gid = getattr(event, "group_id", None)
+    if not await is_bot_globally_enabled(event):
+        return False
+    if gid is not None:
+        data = await get_group_config(gid)
+        return data.enable
+    return True
+
+
+async def is_bot_admin(event: Event) -> bool:
+    """SUPERUSER 判定：user_id 是否在全局 superusers 中"""
+    return event.get_user_id() in get_driver().config.superusers
+
+
 async def is_group_admin(event: GroupMessageEvent, bot: Bot) -> bool:
+    """群管理判定：群主/群管理员，或 SUPERUSER"""
     try:
         role: str = (
             (
@@ -80,12 +101,6 @@ async def is_group_admin(event: GroupMessageEvent, bot: Bot) -> bool:
     except Exception:
         logger.warning(f"获取群成员信息失败: {event.group_id} {event.user_id}")
     return False
-
-
-async def is_bot_admin(event: Event) -> bool:
-    return (int(event.get_user_id())) in ConfigManager().config.admin.admins + [
-        int(user) for user in nb_config.superusers if user.isdigit()
-    ]
 
 
 async def is_group_admin_if_is_in_group(event: MessageEvent, bot: Bot) -> bool:
@@ -108,36 +123,37 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
             return True
 
         # 判断是否以关键字触发回复
-        if "at" in ConfigManager().config.autoreply.keywords:  # 如果配置为 at 开头
+        if "at" in config_manager.config.autoreply.keywords:  # 如果配置为 at 开头
             if event.is_tome():  # 判断是否 @ 了机器人
                 return True
-        if ConfigManager().config.autoreply.keywords_mode == "starts_with":
+        if config_manager.config.autoreply.keywords_mode == "starts_with":
             if message_text.startswith(
-                tuple(i for i in ConfigManager().config.autoreply.keywords if i != "at")
+                tuple(i for i in config_manager.config.autoreply.keywords if i != "at")
             ):
                 return True
-        elif ConfigManager().config.autoreply.keywords_mode == "contains":
+        elif config_manager.config.autoreply.keywords_mode == "contains":
             if any(
                 keyword in message_text
-                for keyword in ConfigManager().config.autoreply.keywords
+                for keyword in config_manager.config.autoreply.keywords
                 if keyword != "at"
             ):
                 return True
 
         # 判断是否启用了AutoReply模式
-        if ConfigManager().config.autoreply.enable:
+        if config_manager.config.autoreply.enable:
             # 根据概率决定是否回复
             rand = random.random()
-            rate = ConfigManager().config.autoreply.probability
+            rate = config_manager.config.autoreply.probability
 
             # 获取记忆数据
-            memory_data = await get_memory_data(event)
-            if rand <= rate and (
-                ConfigManager().config.autoreply.global_enable
-                or memory_data.fake_people
-            ):
-                memory_data.timestamp = time.time()
-                await memory_data.save(event)
+            is_group = bool(getattr(event, "group_id", None))
+            ins_id: int = getattr(event, "group_id", event.user_id)
+            memory_data: MemorySchema = await get_memory(make_uni_id(ins_id, is_group))
+            fk = (await get_group_config(ins_id)).autoreply
+
+            if rand <= rate and (config_manager.config.autoreply.global_enable or fk):
+                memory_data.memory_json.time = time.time()
+                await update_memory(memory_data)
                 return True
             # 合成消息内容
             content = await synthesize_message(message, bot)
@@ -170,42 +186,41 @@ async def should_respond_to_message(event: MessageEvent, bot: Bot) -> bool:
                         group_id=event.group_id, user_id=user_id
                     )
                 )["nickname"]
-                if not ConfigManager().config.function.use_user_nickname
+                if not config_manager.config.function.use_user_nickname
                 else event.sender.nickname
             )
 
             # 生成消息内容并记录到记忆
             content_message = f"[{role}][{Date}][{user_name}（{user_id}）]说:{content}"
             if (
-                not len(memory_data.memory.messages) > 1
-                or memory_data.memory.messages[-1].role != "user"
-                or (not memory_data.memory.messages[-1].content)
+                not len(memory_data.memory_json.messages) > 1
+                or memory_data.memory_json.messages[-1].role != "user"
+                or (not memory_data.memory_json.messages[-1].content)
             ):
-                memory_data.memory.messages.append(
+                memory_data.memory_json.messages.append(
                     Message(
                         role="user",
                         content=[TextContent(type="text", text=content_message)],
                     )
                 )
-            elif isinstance(memory_data.memory.messages[-1].content, str):
-                memory_data.memory.messages[-1].content = [
+            elif isinstance(memory_data.memory_json.messages[-1].content, str):
+                memory_data.memory_json.messages[-1].content = [
                     TextContent(
-                        type="text", text=str(memory_data.memory.messages[-1].content)
+                        type="text",
+                        text=str(memory_data.memory_json.messages[-1].content),
                     ),
                     TextContent(type="text", text=content_message),
                 ]
             else:
-                assert isinstance(memory_data.memory.messages[-1].content, list)
-                if len(memory_data.memory.messages[-1].content) >= 100:
-                    memory_data.memory.messages[
+                assert isinstance(memory_data.memory_json.messages[-1].content, list)
+                if len(memory_data.memory_json.messages[-1].content) >= 100:
+                    memory_data.memory_json.messages[
                         -1
-                    ].content = memory_data.memory.messages[-1].content[-100:]
-                memory_data.memory.messages[-1].content.append(
+                    ].content = memory_data.memory_json.messages[-1].content[-100:]
+                memory_data.memory_json.messages[-1].content.append(
                     TextContent(type="text", text=content_message)
                 )
-            # 写入记忆数据
-            await memory_data.save(event)
-
+            await update_memory(memory_data)
         # 默认返回 False
         return False
 
@@ -221,7 +236,10 @@ async def should_respond_with_usage_check(event: MessageEvent, bot: Bot) -> bool
         ):
             if event.is_tome():
                 with contextlib.suppress(Exception):
-                    await bot.send(event, "今天的聊天额度已经用完了～")
+                    await bot.send(
+                        event,
+                        random.choice(config_manager.config.usage_limit.limit_msg),
+                    )
                     return False
             return False
         return True

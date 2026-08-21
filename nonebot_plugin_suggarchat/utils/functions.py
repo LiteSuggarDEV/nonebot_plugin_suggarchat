@@ -1,9 +1,10 @@
 import json
-import re
 from datetime import datetime
 from typing import Any
 
 import pytz
+from amrita_core.utils import remove_think_tag
+from amrita_sense.logging import debug_log
 from nonebot import logger
 from nonebot.adapters.onebot.v11 import (
     Bot,
@@ -11,42 +12,7 @@ from nonebot.adapters.onebot.v11 import (
     Message,
 )
 
-from nonebot_plugin_suggarchat.utils.logging import debug_log
-
-from ..config import ConfigManager
-
-
-def remove_think_tag(text: str) -> str:
-    """移除第一次出现的think标签
-
-    Args:
-        text (str): 处理的参数
-
-    Returns:
-        str: 处理后的文本
-    """
-
-    start_tag = "<think>"
-    end_tag = "</think>"
-
-    # 查找第一个起始标签的位置
-    start_idx = text.find(start_tag)
-    if start_idx == -1:
-        return text  # 没有找到起始标签，直接返回原文本
-
-    # 在起始标签之后查找结束标签的位置
-    end_idx = text.find(end_tag, start_idx + len(start_tag))
-    if end_idx == -1:
-        return text  # 没有找到对应的结束标签，返回原文本
-
-    # 计算结束标签的结束位置
-    end_of_end_tag = end_idx + len(end_tag)
-
-    # 拼接移除标签后的文本
-    text_new = text[:start_idx] + text[end_of_end_tag:]
-    while text_new.startswith("\n"):
-        text_new = text_new[1:]
-    return text_new
+from ..config import config_manager
 
 
 async def is_member(event: GroupMessageEvent, bot: Bot) -> bool:
@@ -73,10 +39,6 @@ def format_datetime_timestamp(time: int) -> str:
     return f"[{formatted_date} {formatted_weekday} {formatted_time}]"
 
 
-# 在文件顶部预编译正则表达式
-SENTENCE_DELIMITER_PATTERN = re.compile(r'([。！？!?;；\n]+)[""\'\'"\s]*', re.UNICODE)
-
-
 def split_message_into_chats(text: str, max_length: int = 100) -> list[str]:
     """
     根据标点符号分割文本为句子
@@ -93,7 +55,7 @@ def split_message_into_chats(text: str, max_length: int = 100) -> list[str]:
 
     sentences = []
     start = 0
-    for match in SENTENCE_DELIMITER_PATTERN.finditer(text):
+    for match in config_manager.config.function.pattern.finditer(text):
         end = match.end()
         if sentence := text[start:end].strip():
             sentences.append(sentence)
@@ -168,7 +130,9 @@ async def synthesize_forward_message(forward_msg: dict, bot: Bot) -> str:
                         case "forward":
                             result += f"\\（合并转发:{await synthesize_forward_message(await bot.get_forward_msg(id=segments['data']['id']), bot)}）\\"
         except Exception as e:
-            logger.opt(colors=True, exception=e).warning(f"解析消息时出错：{e!s}'")
+            logger.opt(colors=True, exception=e, raw=True).warning(
+                f"解析消息时出错：{e!s}'"
+            )
             result += f"\n<!--该消息段无法被解析--><origin>{segment!s}</origin>"
         result += "\n"
     return result
@@ -184,10 +148,10 @@ async def synthesize_message(message: Message, bot: Bot) -> str:
             content += f"\\（at: @{segment.data.get('name')}(QQ:{segment.data['qq']}))"
         elif (
             segment.type == "forward"
-            and ConfigManager().config.function.synthesize_forward_message
+            and config_manager.config.function.synthesize_forward_message
         ):
-            forward: dict[str, Any] = await bot.get_forward_msg(id=segment.data["id"])
-            debug_log(forward)
+            forward = await bot.get_forward_msg(id=segment.data["id"])
+            debug_log(str(forward))
             content += (
                 " \\（合并转发\n"
                 + await synthesize_forward_message(forward, bot)
@@ -203,9 +167,9 @@ def split_list(lst: list, threshold: int) -> list[Any]:
     return [lst[i : i + threshold] for i in range(0, len(lst), threshold)]
 
 
-def get_current_datetime_timestamp():
+def get_current_datetime_timestamp(utc_time: datetime | None = None):
     """获取当前时间并格式化为日期、星期和时间字符串"""
-    utc_time = datetime.now(pytz.utc)
+    utc_time = utc_time or datetime.now(pytz.utc)
     asia_shanghai = pytz.timezone("Asia/Shanghai")
     now = utc_time.astimezone(asia_shanghai)
     formatted_date = now.strftime("%Y-%m-%d")
@@ -225,3 +189,6 @@ async def get_friend_name(qq_number: int, bot: Bot) -> str:
         ),
         "",
     )
+
+
+__all__ = ["remove_think_tag"]

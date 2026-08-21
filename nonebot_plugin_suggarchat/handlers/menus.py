@@ -1,27 +1,38 @@
+"""聊天菜单命令"""
 from nonebot.adapters.onebot.v11 import Bot, MessageEvent, MessageSegment
 from nonebot.matcher import Matcher
 
-from nonebot_plugin_suggarchat.send import send_forward_msg
+from ..config import config_manager
+from ..utils.send import send_forward_msg
 
-from .. import config
-from ..chatmanager import chat_manager
-from ..config import ConfigManager
+_MENU_MSG = (
+    "—— SuggarChat 菜单 ——\n"
+    "📝 直接发送消息与我聊天\n"
+    "/prompt — 自定义提示词\n"
+    "/choose_prompt — 切换提示词模板\n"
+    "/presets — 查看模型列表\n"
+    "/set_preset <名> — 切换模型\n"
+    "/test_preset [名] [-d] — 测试模型\n"
+    "/sessions — 会话管理\n"
+    "/del_memory — 清除记忆\n"
+    "/show-abstract — 查看摘要\n"
+    "/insights — 今日用量\n"
+    "/chatobj — 会话状态\n"
+    "/mcp — MCP 管理\n"
+    "/debug — 调试开关\n"
+    "/autochat on|off — 自动回复\n"
+    "/enable|/disable — 启用/禁用聊天"
+)
 
 
 async def menu(bot: Bot, event: MessageEvent, matcher: Matcher):
     """处理聊天菜单命令"""
-
-    # 初始化消息内容为默认菜单消息
-    msg = chat_manager.menu_msg
-
-    # 遍历自定义菜单项，添加到消息内容
-    for menus in chat_manager.custom_menu:
-        msg += f"\n{menus['cmd']} {menus['describe']}"
-
-    # 根据配置添加群聊或私聊的提示信息
-    msg += f"\n{'群内可以at我与我聊天，' if ConfigManager().config.function.enable_group_chat else '未启用群内聊天，'}{'在私聊可以直接聊天。' if ConfigManager().config.function.enable_private_chat else '未启用私聊聊天'}\nPowered by SuggarChat V{config.__kernel_version__}"
-
-    # 发送最终消息内容
+    config = config_manager.config
+    msg = _MENU_MSG + (
+        f"\n{'群内可以 at 我与我聊天，' if config.function.enable_group_chat else '未启用群内聊天，'}"
+        f"{'在私聊可以直接聊天。' if config.function.enable_private_chat else '未启用私聊聊天'}"
+        "\nPowered by SuggarChat"
+    )
     await send_forward_msg(
         bot, event, "菜单", str(event.self_id), [MessageSegment.text(msg)]
     )

@@ -1,109 +1,44 @@
-from __future__ import annotations
-
-import copy
 import json
 import os
 import re
-from copy import deepcopy
-from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
-from typing import Any, Literal, TypeVar
+from typing import Any, ClassVar, Literal
 
-import aiofiles
 import nonebot_plugin_localstore as store
 import tomli
 import tomli_w
+from amrita_core import ModelPreset as ModelPreset
+from amrita_core import set_config
+from amrita_core.config import (
+    AmritaConfig as AmritaCoreConfig,
+)
+from amrita_core.config import (
+    LLMConfig as CoreLLMConfig,
+)
 from nonebot import get_driver, logger
 from nonebot_plugin_uniconf import EnvfulConfigManager, UniConfigManager
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+from typing_extensions import final, override
 
-__kernel_version__ = "unknown"
-
-# 保留为其他插件提供的引用
+from .preset_store import PresetStore
+from .prompt_store import Prompt as Prompt
+from .prompt_store import Prompts, PromptStore
+from .services import ModelConfigService, PresetService, PromptService
 
 # 配置目录
 CONFIG_DIR: Path = store.get_plugin_config_dir()
 driver = get_driver()
 nb_config = driver.config
-STRDICT = dict[str, Any]
-
-T = TypeVar("T", STRDICT, list[str | STRDICT], str)
-
-# 缓存的正则表达式
-_re_hash: int = 0
-_cached_pattern: re.Pattern[str] | None = None
 
 
-def replace_env_vars(
-    data: T,
-) -> T:
-    """递归替换环境变量占位符，但不修改原始数据"""
-    data_copy = copy.deepcopy(data)  # 创建原始数据的深拷贝[4,5](@ref)
-    if isinstance(data_copy, dict):
-        for key, value in data_copy.items():
-            data_copy[key] = replace_env_vars(value)
-    elif isinstance(data_copy, list):
-        for i in range(len(data_copy)):
-            data_copy[i] = replace_env_vars(data_copy[i])
-    elif isinstance(data_copy, str):
-        patterns = (
-            r"\$\{(\w+)\}",
-            r"\{\{(\w+)\}\}",
-        )  # 支持两种格式的占位符，分别为 ${} 和 {{}}
-
-        def replacer(match: re.Match[str]) -> str:
-            var_name = match.group(1)
-            return os.getenv(var_name, "")  # 若未设置环境变量，返回空字符串
-
-        for pattern in patterns:
-            if re.search(pattern, data_copy):
-                # 如果匹配到占位符，则进行替换
-                data_copy = re.sub(pattern, replacer, data_copy)
-                break  # 替换后跳出循环，避免重复替换
-    return data_copy
-
-
-class ModelPreset(BaseModel):
-    model: str = Field(default="", description="使用的AI模型名称（如gpt-3.5-turbo）")
-    name: str = Field(default="default", description="当前预设的标识名称")
-    base_url: str = Field(
-        default="", description="API服务的基础地址（为空则使用OpenAI默认地址）"
-    )
-    api_key: str = Field(default="", description="访问API所需的密钥")
-    protocol: str = Field(default="__main__", description="协议适配器类型")
-    thought_chain_model: bool = Field(
-        default=False, description="是否启用思维链模型优化（增强复杂问题处理）"
-    )
-    multimodal: bool = Field(
-        default=False, description="是否支持多模态输入（如图片识别）"
-    )
-    extra: dict[str, Any] = Field(default_factory=dict)
-
-    @classmethod
-    def load(cls, path: Path):
-        if path.exists():
-            with path.open(
-                "r",
-                encoding="utf-8",
-            ) as f:
-                data = json.load(f)
-            return cls.model_validate(data)
-        return cls()  # 返回默认值
-
-    def save(self, path: Path):
-        with path.open("w", encoding="u8") as f:
-            json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)
+@lru_cache(maxsize=8)
+def _compile_pattern(pattern: str) -> re.Pattern[str]:
+    return re.compile(pattern)
 
 
 class ToolsConfig(BaseModel):
-    enable_tools: bool = Field(
-        default=True,
-        description="是否启用外部工具调用功能（关闭此选项不影响内容审查系统）",
-    )
-    use_minimal_context: bool = Field(
-        default=True,
-        description="是否使用最小上下文，即使用系统prompt+用户最后一条消息（关闭此选项将使用消息列表的所有上下文，在Agent工作流执行中可能会消耗大量Tokens，启用此选项可能会有效降低Tokens使用量）",
-    )
+    #  Chat 插件独有（Core 已覆盖的字段移到 core.builtin / core.function_config）
     enable_report: bool = Field(default=True, description="是否启用内容审查系统")
     report_exclude_system_prompt: bool = Field(
         default=False,
@@ -123,49 +58,20 @@ class ToolsConfig(BaseModel):
     require_tools: bool = Field(
         default=False, description="是否强制要求每次调用至少使用一个工具"
     )
-    agent_mode_enable: bool = Field(
-        default=False, description="启用智能体模式（实验体验）"
-    )
-    agent_tool_call_limit: int = Field(
-        default=10, description="智能体模式下的工具调用限制"
-    )
-    agent_tool_call_notice: Literal["hide", "notify"] = Field(
-        default="hide",
-        description="智能体模式下的工具调用情况提示方式，hide为隐藏，notify为通知",
-    )
-    agent_thought_mode: Literal[
-        "reasoning", "chat", "reasoning-required", "reasoning-optional"
-    ] = Field(
-        default="chat",
-        description="智能体模式下的思考模式，reasoning模式会先执行思考过程，然后执行任务；"
-        "reasoning-required要求每次Tool Calling都执行任务分析；"
-        "reasoning-optional不要求reasoning，但是允许reasoning；"
-        "chat模式会直接执行任务",
-    )
-    agent_reasoning_hide: bool = Field(
-        default=False, description="是否隐藏智能体模式下的思考过程"
-    )
-    agent_middle_message: bool = Field(
-        default=True, description="是否在智能体模式下允许Agent向用户发送中间消息"
-    )
-    agent_mcp_client_enable: bool = Field(
-        default=False, description="是否启用MCP客户端"
-    )
-    agent_mcp_server_scripts: list[str] = Field(
-        default=[], description="MCP服务端脚本列表"
-    )
 
 
 class SessionConfig(BaseModel):
     session_control: bool = Field(default=False, description="是否启用会话超时自动清理")
+    session_allow_continue: bool = Field(default=True, description="是否允许会话继续")
     session_control_time: int = Field(
         default=60, description="会话超时时间（单位：分钟）"
     )
     session_control_history: int = Field(
         default=10, description="会话历史记录最大保存条数"
     )
-    session_max_tokens: int = Field(
-        default=5000, description="单次会话上下文最大token容量"
+    session_long_running_notify_seconds: int = Field(
+        default=180,
+        description="私聊Agent超时提示阈值（单位：秒），超过此时间未返回则提示用户可终止任务。设为0禁用",
     )
 
 
@@ -182,6 +88,14 @@ class AutoReplyConfig(BaseModel):
 
 
 class FunctionConfig(BaseModel):
+    message_type: Literal["xml", "legacy"] = Field(
+        default="legacy",
+        description=(
+            "消息格式类型：\n"
+            '  xml    — <msg role="群主" name="张三" uid="12345">\n{内容}\n</msg>（结构清晰但费tokens）\n'
+            "  legacy — [群主][张三（12345）]说:内容（紧凑但LLM易误解析）"
+        ),
+    )
     chat_pending_mode: Literal["single", "queue", "single_with_report"] = Field(
         default="queue",
         description="聊天时，如果同一个Session并发调用但是上一条消息没有处理完时插件的行为。\n"
@@ -210,40 +124,34 @@ class FunctionConfig(BaseModel):
     chat_object_keep_count: int = Field(
         default=10, description="单会话聊天对象保存数量限制"
     )
+    forward_threshold: int = Field(
+        default=200,
+        description="最终响应超过该字符数时改用合并转发发送（0=禁用）",
+    )
+    forward_min_chunk: int = Field(
+        default=500,
+        description="合并转发时每个分块的最小字符数，不满足则不分块",
+    )
 
     @property
     def pattern(self) -> re.Pattern:
         """
         获取分句的正则表达式
         """
-        global _cached_pattern, _re_hash
-        pattern_hash = hash(self.nature_chat_cut_pattern)
-        if pattern_hash != _re_hash or _cached_pattern is None:
-            _cached_pattern = re.compile(self.nature_chat_cut_pattern)
-            _re_hash = pattern_hash
-        return _cached_pattern
+        return _compile_pattern(self.nature_chat_cut_pattern)
 
 
 class PresetSwitch(BaseModel):
     backup_preset_list: list[str] = Field(
         default=[], description="主模型不可用时自动切换的备选模型预设列表"
     )
-    multi_modal_preset_list: list[str] = Field(
-        default=[], description="多模态场景预设调用顺序"
+
+
+class AdminConfig(BaseModel):
+    allow_send_to_admin: bool = Field(
+        default=False, description="是否允许发送消息给管理员"
     )
-
-
-class CookieModel(BaseModel):
-    cookie: str = Field(default="", description="用于安全检测的Cookie字符串")
-    enable_cookie: bool = Field(default=False, description="是否启用Cookie泄露检测机制")
-
-    @property
-    def block_msg(self) -> list[str]:
-        return ConfigManager().config.llm_config.block_msg
-
-    @block_msg.setter
-    def block_msg(self, value: list[str]):
-        ConfigManager().config.llm_config.block_msg = value
+    admin_group: int = Field(default=0, description="管理员群号（0=未设置）")
 
 
 class ExtendConfig(BaseModel):
@@ -251,7 +159,7 @@ class ExtendConfig(BaseModel):
         default=False, description="消息被撤回后是否自动回复"
     )
     group_added_msg: str = Field(
-        default="你好，我是Suggar，欢迎使用SuggarAI聊天机器人...",
+        default="你好，我是Amria，有关使用手册见https://bot.amritabot.com",
         description="入群欢迎消息",
     )
     send_msg_after_be_invited: bool = Field(
@@ -275,12 +183,6 @@ class ExtendConfig(BaseModel):
     )
 
 
-class AdminConfig(BaseModel):
-    allow_send_to_admin: bool = False
-    admin_group: int = 0
-    admins: list[int] = []
-
-
 class UsageLimitConfig(BaseModel):
     enable_usage_limit: bool = Field(default=False, description="是否启用使用频率限制")
     group_daily_limit: int = Field(default=100, description="单个群组每日最大使用次数")
@@ -294,37 +196,42 @@ class UsageLimitConfig(BaseModel):
     total_daily_limit: int = Field(default=1500, description="总使用次数限制")
     total_daily_token_limit: int = Field(default=1000000, description="总使用token限制")
     global_insights_expire_days: int = Field(default=7, description="全局统计过期天数")
+    limit_msg: list[str] = Field(
+        default=["今日额度已达上限，请明天再试。"],
+        description="达到使用限制时返回的消息",
+    )
 
 
 class LLM_Config(BaseModel):
-    tools: ToolsConfig = Field(default=ToolsConfig(), description="工具调用配置")
+    #  Chat 插件独有（Core 已覆盖的字段如 memory_length_limit 等已移至 core.llm）
+    tools: ToolsConfig = Field(default=ToolsConfig(), description="工具调用子系统")
     stream: bool = Field(default=False, description="是否启用流式响应（逐字输出）")
-    memory_lenth_limit: int = Field(default=50, description="记忆上下文的最大消息数量")
-    max_tokens: int = Field(default=100, description="单次回复生成的最大token数")
-    tokens_count_mode: Literal["word", "bpe", "char"] = Field(
-        default="bpe", description="Token计算模式：bpe(子词)/word(词语)/char(字符)"
-    )
-    enable_tokens_limit: bool = Field(
-        default=True, description="是否启用上下文长度限制"
-    )
-    llm_timeout: int = Field(default=60, description="API请求超时时间（秒）")
-    auto_retry: bool = Field(default=True, description="请求失败时自动重试")
-    max_retries: int = Field(default=3, description="最大重试次数")
-    enable_memory_abstract: bool = Field(
-        default=True,
-        description="是否启用上下文记忆摘要(将删除上下文替换为一个摘要插入到system instruction中)",
-    )
-    memory_abstract_proportion: float = Field(
-        default=15e-2, description="上下文摘要比例(0.15=15%)"
-    )
     block_msg: list[str] = Field(
         default=["你好，这个问题我暂时无法处理，请稍后再试。"],
         description="触发安全熔断时随机返回的提示消息",
     )
+    agent_strategy: Literal["react", "hybrid-react", "no-action"] = Field(
+        default="react",
+        description="代理策略：react(仅使用ReAct) / hybrid-react(使用混合ReAct) / no-action(跳过Agent运行)",
+    )
+    agent_workflow: Literal["react", "step-react"] = Field(
+        default="react",
+        description=(
+            "推理工作流：react(普通ReAct循环，一轮工具调用内完成推理与执行) / "
+            "step-react(Step驱动的ReAct循环：LLM先分解计划，框架逐Step走完，"
+            "支持计划修订update_step、停滞检测、Step间压缩，需模型支持结构化输出)"
+        ),
+    )
 
 
 class Config(BaseModel):
-    admin: AdminConfig = AdminConfig()
+    #  直接嵌入 Core 配置
+    core: AmritaCoreConfig = Field(
+        default_factory=AmritaCoreConfig,
+        description="Amrita Core 原生配置（与 chat 插件共享）。写入时自动同步到 Core 全局单例。",
+    )
+
+    #  Chat 插件独有字段
     preset_extension: PresetSwitch = Field(
         default=PresetSwitch(), description="预设模型扩展配置"
     )
@@ -332,27 +239,22 @@ class Config(BaseModel):
         default=ModelPreset(), description="默认预设配置"
     )
     session: SessionConfig = Field(default=SessionConfig(), description="会话管理配置")
-    cookies: CookieModel = Field(
-        default=CookieModel(), description="电子水印检测功能配置"
-    )
     autoreply: AutoReplyConfig = Field(
         default=AutoReplyConfig(), description="自动回复设置"
     )
     function: FunctionConfig = Field(
         default=FunctionConfig(), description="功能开关配置"
     )
+    admin: AdminConfig = Field(default=AdminConfig(), description="管理员配置")
     extended: ExtendConfig = Field(default=ExtendConfig(), description="扩展行为设置")
-    llm_config: LLM_Config = Field(default=LLM_Config(), description="大语言模型配置")
+    llm: LLM_Config = Field(default=LLM_Config(), description="LLM核心功能配置")
     extra: dict[str, Any] = Field(default={}, description="扩展预留区")
     usage_limit: UsageLimitConfig = Field(
         default=UsageLimitConfig(), description="使用限额配置"
     )
-    enable: bool = Field(default=False, description="是否启用 SuggarChat 主功能")
+    enable: bool = Field(default=False, description="是否启用 Amrita的聊天能力")
     parse_segments: bool = Field(
         default=True, description="是否解析特殊消息段（如@提及/合并转发等）"
-    )
-    matcher_function: bool = Field(
-        default=True, description="是否启用 SuggarMatcher 高级匹配功能"
     )
     preset: str = Field(default="default", description="默认使用的模型预设配置名称")
     group_prompt_character: str = Field(
@@ -362,8 +264,93 @@ class Config(BaseModel):
         default="default", description="私聊场景使用的提示词模板名称"
     )
 
+    @model_validator(mode="before")
     @classmethod
-    def load_from_toml(cls, path: Path) -> Config:
+    def migrate_old_config(cls, data: Any) -> Any:
+        """
+        迁移旧版 flat 配置到 core 嵌入结构。
+
+        旧 TOML 格式 (无 core 键):
+            { "llm": { "memory_length_limit": ..., ... },
+              "cookies": { "cookie": ..., "enable_cookie": ... },
+              "llm.tools": { "tool_calling_mode": ..., ... } }
+
+        新 TOML 格式 (有 core 键则跳过):
+            { "core": { "llm": {...}, "cookie": {...}, "builtin": {...}, "function_config": {...} },
+              "llm": { "block_msg": ..., "agent_strategy": ..., "stream": ..., "tools": {<chat-only>} },
+              ... }
+        """
+        if not isinstance(data, dict):
+            return data
+        if "core" in data:
+            return data  # 已迁移
+
+        core_data: dict[str, Any] = {}
+
+        # cookies -> core.cookie
+        if "cookies" in data:
+            cookies = data.pop("cookies")
+            if isinstance(cookies, dict):
+                core_data["cookie"] = {
+                    k: v
+                    for k, v in {
+                        "enable_cookie": cookies.get("enable_cookie", False),
+                        "cookie": cookies.get("cookie", ""),
+                    }.items()
+                    if v is not None
+                }
+
+        # llm.* -> core.llm (CoreLLMConfig fields)
+        if "llm" in data and isinstance(data["llm"], dict):
+            llm = data["llm"]
+            core_llm: dict[str, Any] = {}
+            for field_name in CoreLLMConfig.model_fields:
+                if field_name in llm:
+                    val = llm.pop(field_name)
+                    if val is not None:
+                        core_llm[field_name] = val
+            if core_llm:
+                core_data["llm"] = core_llm
+
+            # llm.tools.* -> core.builtin & core.function_config
+            if "tools" in llm and isinstance(llm["tools"], dict):
+                tools = llm["tools"]
+                tools.pop("use_minimal_context", None)
+                tools.pop("agent_tool_call_limit", None)
+
+                builtin = {
+                    "tool_calling_mode": tools.pop("tool_calling_mode", "agent"),
+                    "agent_tool_call_notice": tools.pop(
+                        "agent_tool_call_notice", "hide"
+                    ),
+                    "agent_thought_mode": tools.pop("agent_thought_mode", "chat"),
+                    "agent_reasoning_hide": tools.pop("agent_reasoning_hide", False),
+                }
+                core_data["builtin"] = {
+                    k: v for k, v in builtin.items() if v is not None
+                }
+
+                func_cfg = {
+                    "use_minimal_context": tools.pop("use_minimal_context", True),
+                    "agent_tool_call_limit": tools.pop("agent_tool_call_limit", 10),
+                    "agent_middle_message": tools.pop("agent_middle_message", True),
+                    "agent_mcp_client_enable": tools.pop(
+                        "agent_mcp_client_enable", False
+                    ),
+                    "agent_mcp_server_scripts": tools.pop(
+                        "agent_mcp_server_scripts", []
+                    ),
+                }
+                core_data["function_config"] = {
+                    k: v for k, v in func_cfg.items() if v is not None
+                }
+
+        if core_data:
+            data["core"] = core_data
+        return data
+
+    @classmethod
+    def load_from_toml(cls, path: Path) -> "Config":
         """从 TOML 文件加载配置"""
         if not path.exists():
             return cls()
@@ -373,11 +360,11 @@ class Config(BaseModel):
 
     def validate_value(self):
         """校验配置"""
-        if self.llm_config.max_tokens <= 0:
+        if self.core.llm.max_tokens <= 0:
             raise ValueError("max_tokens必须大于零!")
-        if self.llm_config.llm_timeout <= 0:
+        if self.core.llm.llm_timeout <= 0:
             raise ValueError("LLM请求超时时间必须大于零！")
-        if self.session.session_max_tokens <= 0:
+        if self.core.llm.session_tokens_windows <= 0:
             raise ValueError("上下文最大Tokens限制必须大于零！")
         if self.session.session_control:
             if self.session.session_control_history <= 0:
@@ -386,7 +373,7 @@ class Config(BaseModel):
                 raise ValueError("会话生命周期时间不能小于零！")
 
     @classmethod
-    def load_from_json(cls, path: Path) -> Config:
+    def load_from_json(cls, path: Path) -> "Config":
         """从 JSON 文件加载配置"""
         with path.open("r", encoding="utf-8") as f:
             data: dict[str, Any] = json.load(f)
@@ -395,55 +382,51 @@ class Config(BaseModel):
     def save_to_toml(self, path: Path):
         """保存配置到 TOML 文件"""
         with path.open("w", encoding="utf-8") as f:
-            f.write(tomli_w.dumps(self.model_dump()))
+            f.write(tomli_w.dumps(self.model_dump(exclude_none=True)))
+
+    def model_dump(self, **kwargs: Any) -> dict[str, Any]:
+        """覆盖 model_dump，默认排除 None 值以兼容 TOML 序列化。"""
+        kwargs.setdefault("exclude_none", True)
+        return super().model_dump(**kwargs)
 
 
-@dataclass
-class Prompt:
-    text: str = ""
-    name: str = "default"
-
-
-@dataclass
-class Prompts:
-    group: list[Prompt] = field(default_factory=list)
-    private: list[Prompt] = field(default_factory=list)
-
-    def save_group(self, path: Path):
-        """保存群组提示词"""
-        for prompt in self.group:
-            with (path / f"{prompt.name}.txt").open(
-                "w",
-                encoding="u8",
-            ) as f:
-                f.write(prompt.text)
-
-    def save_private(self, path: Path):
-        """保存私聊提示词"""
-        for prompt in self.private:
-            with (path / f"{prompt.name}.txt").open(
-                "w",
-                encoding="u8",
-            ) as f:
-                f.write(prompt.text)
-
-
+@final
 class ConfigManager(EnvfulConfigManager[Config]):
-    config_class = Config
-    _owner_name: str = store._try_get_caller_plugin().name
-    config_dir = CONFIG_DIR
+    config_dir: Path = CONFIG_DIR
+    private_prompts: Path = config_dir / "private_prompts"
+    group_prompts: Path = config_dir / "group_prompts"
+    custom_models_dir: Path = config_dir / "models"
+    prompt_store: ClassVar[PromptStore] = PromptStore(private_prompts, group_prompts)
+    preset_store: ClassVar[PresetStore] = PresetStore(custom_models_dir)
+    config: Config
+    _owner_name = store._try_get_caller_plugin().name
+    __lateinit__ = True
 
-    @classmethod
-    def __init_classvars__(cls):
-        config_dir = cls.config_dir
-        cls.private_prompts = config_dir / "private_prompts"
-        cls.group_prompts = config_dir / "group_prompts"
-        cls.custom_models_dir = config_dir / "models"
-        cls._private_train = {}
-        cls._group_train = {}
-        cls._model_name2file = {}
-        cls.models = []
-        cls.prompts = Prompts()
+    def __init__(self) -> None:
+        # 领域服务（阶段 3）：配置读写与业务语义解耦。
+        # 服务构造只依赖惰性回调，配置加载前后均可安全初始化。
+        self.presets = PresetService(
+            self.preset_store,
+            get_config=lambda: self.config,
+            get_ins_config=lambda: self.ins_config,
+            save_config=lambda: self.save_config(),
+        )
+        self.prompts = PromptService(
+            self.prompt_store,
+            get_ins_config=lambda: self.ins_config,
+        )
+        self.models = ModelConfigService(
+            self.preset_store,
+            get_ins_config=lambda: self.ins_config,
+        )
+
+    @override
+    def _update_cache(self, value: Config | None = None):
+        super()._update_cache(value)
+        set_config(self.config.core)
+
+    async def __apost_init__(self):
+        await self.load()
 
     async def load(self):
         """_初始化配置目录_"""
@@ -451,7 +434,7 @@ class ConfigManager(EnvfulConfigManager[Config]):
         async def prompt_callback():
             logger.info("正在重载插件提示词文件...")
             await self.get_prompts(False, True)
-            await self.load_prompt()
+            self.load_prompt()
             logger.success("提示词文件已重载")
 
         async def models_callback():
@@ -465,156 +448,87 @@ class ConfigManager(EnvfulConfigManager[Config]):
         os.makedirs(self.private_prompts, exist_ok=True)
         os.makedirs(self.group_prompts, exist_ok=True)
         os.makedirs(self.custom_models_dir, exist_ok=True)
-        if self._task:
-            await self._task
-        self.__class__.ins_config = await UniConfigManager().get_config(
-            self._owner_name
-        )
 
-        await UniConfigManager().add_directory("models", lambda *_: models_callback())
+        await UniConfigManager().add_directory(
+            "models",
+            lambda *_: models_callback(),
+            owner_name=self._owner_name,
+        )
         self.validate_presets()
         ps = await self.get_all_presets(cache=False)
-        logger.info(f"加载了{len(ps)}个模型")
+        logger.info(f"加载了{len(ps)}个模型 (包含默认)")
         p = await self.get_prompts(cache=False)
         logger.info(f"加载了{len(p.group) + len(p.private)}个提示词")
-        await self.load_prompt()
+        self.load_prompt()
         await UniConfigManager().add_directory(
             "group_prompts",
             lambda *_: prompt_callback(),
-            lambda change: (change[1].startswith(str(self.group_prompts)))
-            and change[1].endswith(".txt"),
+            lambda change: (
+                (change[1].startswith(str(self.group_prompts)))
+                and change[1].endswith(".txt")
+            ),
+            owner_name=self._owner_name,
         )
         await UniConfigManager().add_directory(
             "private_prompts",
             lambda *_: prompt_callback(),
-            lambda change: change[1].startswith(str(self.private_prompts))
-            and change[1].endswith(".txt"),
+            lambda change: (
+                change[1].startswith(str(self.private_prompts))
+                and change[1].endswith(".txt")
+            ),
+            owner_name=self._owner_name,
         )
-
-    def validate_presets(self):
-        def validate_preset(path: Path):
-            try:
-                model_data = ModelPreset.load(path)
-                model_data.save(path)
-                self._model_name2file[model_data.name] = path
-            except Exception as e:
-                logger.opt(colors=True).error(
-                    f"Failed to validate preset '{file!s}' because '{e!s}'"
-                )
-
-        for file in self.custom_models_dir.glob("*.json"):
-            validate_preset(file)
-
-    async def get_all_presets(self, cache: bool = False) -> list[ModelPreset]:
-        """获取模型列表"""
-        if cache and self.models:
-            return [model for model, _ in self.models]
-        self.models.clear()  # 清空模型列表
-
-        for file in self.custom_models_dir.glob("*.json"):
-            model_data = ModelPreset.load(file).model_dump()
-            preset_data = replace_env_vars(model_data)
-            if not isinstance(preset_data, dict):
-                raise TypeError("Expected replace_env_vars to return a dict")
-            model_preset = ModelPreset.model_validate(preset_data)
-            self._model_name2file[model_preset.name] = file
-            self.models.append((model_preset, file.stem))
-
-        return [model for model, _ in self.models]
-
-    async def get_preset(
-        self, preset: str, fix: bool = False, cache: bool = False
-    ) -> ModelPreset:
-        """_获取预设配置_
-
-        Args:
-            preset (str): _预设的字符串名称_
-            fix (bool, optional): _是否修正不存在的预设_. Defaults to False.
-            cache (bool, optional): _是否使用缓存_. Defaults to False.
-
-        Returns:
-            ModelPreset: _模型预设对象_
-        """
-        if preset == "default":
-            return self.config.default_preset
-        for model in await self.get_all_presets(cache=cache):
-            if model.name == preset:
-                return model
-        if fix:
-            self.ins_config.preset = "default"
-            await self.save_config()
-        return await self.get_preset("default", fix, cache)
 
     async def get_prompts(
         self, cache: bool = False, load_only: bool = False
     ) -> Prompts:
-        """获取提示词"""
-        if cache and self.prompts:
-            return self.prompts
-        self.prompts = Prompts()
-        for file in self.private_prompts.glob("*.txt"):
-            async with aiofiles.open(file, encoding="utf-8") as f:
-                prompt = await f.read()
-            self.prompts.private.append(Prompt(prompt, file.stem))
-        for file in self.group_prompts.glob("*.txt"):
-            async with aiofiles.open(file, encoding="utf-8") as f:
-                prompt = await f.read()
-            self.prompts.group.append(Prompt(prompt, file.stem))
-        if not self.prompts.private:
-            self.prompts.private.append(Prompt("", "default"))
-        if not self.prompts.group:
-            self.prompts.group.append(Prompt("", "default"))
+        """获取提示词（委托 PromptService）"""
+        return await self.prompts.get_prompts(cache=cache, load_only=load_only)
 
-        if not load_only:
-            self.prompts.save_private(self.private_prompts)
-            self.prompts.save_group(self.group_prompts)
-
-        return self.prompts
+    def load_prompt(self):
+        """加载提示词，匹配预设（委托 PromptService，纯内存操作）"""
+        self.prompts.load_prompt()
 
     @property
     def private_train(self) -> dict[str, str]:
-        """获取私聊提示词"""
-        return deepcopy(self._private_train)
+        """获取私聊提示词（委托 PromptService）"""
+        return self.prompts.private_train
 
     @property
     def group_train(self) -> dict[str, str]:
-        """获取群聊提示词"""
-        return deepcopy(self._group_train)
+        """获取群聊提示词（委托 PromptService）"""
+        return self.prompts.group_train
 
-    async def load_prompt(self):
-        """加载提示词，匹配预设"""
-        for prompt in self.prompts.group:
-            if prompt.name == self.ins_config.group_prompt_character:
-                self.__class__._group_train = {"role": "system", "content": prompt.text}
-                break
-        else:
-            self.__class__._group_train = {
-                "role": "system",
-                "content": next(
-                    i for i in self.prompts.group if i.name == "default"
-                ).text,
-            }
-            logger.warning(
-                f"没有找到名称为 {self.ins_config.group_prompt_character} 的群组提示词，将使用default.txt!"
-            )
+    def validate_presets(self):
+        """校验所有预设文件（委托 PresetService）"""
+        self.presets.validate()
 
-        for prompt in self.prompts.private:
-            if prompt.name == self.__class__.ins_config.private_prompt_character:
-                self.__class__._private_train = {
-                    "role": "system",
-                    "content": prompt.text,
-                }
-                break
-        else:
-            logger.warning(
-                f"没有找到名称为 {self.__class__.ins_config.private_prompt_character} 的私聊提示词，将使用default.txt！"
-            )
-            self.__class__._private_train = {
-                "role": "system",
-                "content": next(
-                    i for i in self.prompts.private if i.name == "default"
-                ).text,
-            }
+    async def get_all_presets(self, cache: bool = True) -> list[ModelPreset]:
+        """获取模型列表（委托 PresetService，默认走缓存）"""
+        return await self.presets.get_all_presets(cache=cache)
+
+    async def get_preset(
+        self, preset: str, fix: bool = False, cache: bool = True
+    ) -> ModelPreset:
+        """获取预设配置（委托 PresetService，默认走缓存）
+
+        Args:
+            preset (str): _预设的字符串名称_
+            fix (bool, optional): _是否修正不存在的预设_. Defaults to False.
+            cache (bool, optional): _是否使用缓存_. Defaults to True.
+
+        Returns:
+            ModelPreset: _模型预设对象_
+        """
+        return await self.presets.get_preset(preset, fix=fix, cache=cache)
+
+    def get_preset_path(self, name: str) -> Path:
+        """预设名对应的文件路径（委托 PresetService）"""
+        return self.presets.get_preset_path(name)
+
+    def forget_preset(self, name: str) -> None:
+        """移除预设名到路径的记录（委托 PresetService）"""
+        self.presets.forget_preset(name)
 
     async def save_config(self):
         """保存配置"""
@@ -647,26 +561,23 @@ class ConfigManager(EnvfulConfigManager[Config]):
         self.ins_config.extra.setdefault(key, default_value)
         await self.save_config()
 
-    def reg_config(self, key: str, default_value=None):
+    async def reg_config(self, key: str, default_value=None):
         """
         注册配置项
 
         :param key: 配置项的名称
 
         """
-        return self.register_config(key, default_value)
+        return await self.register_config(key, default_value)
 
     def reg_model_config(self, key: str, default_value=None):
         """
-        注册模型配置项
+        注册模型配置项（委托 ModelConfigService）
 
         :param key: 配置项的名称
 
         """
-        if default_value is None:
-            default_value = "null"
-        if key not in self.ins_config.default_preset.extra:
-            self.ins_config.default_preset.extra.setdefault(key, default_value)
-        for model, name in self.models:
-            model.extra.setdefault(key, default_value)
-            model.save(self.custom_models_dir / f"{name}.json")
+        self.models.reg_model_config(key, default_value)
+
+
+config_manager = ConfigManager()

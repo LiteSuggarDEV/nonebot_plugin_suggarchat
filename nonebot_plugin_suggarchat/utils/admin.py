@@ -1,10 +1,15 @@
+"""管理员通知工具
+
+发送消息给管理员群（依赖 ``Config.admin`` 配置）。
+"""
+
+from __future__ import annotations
+
 import sys
 
 import nonebot
 from nonebot import logger
-from nonebot.adapters.onebot.v11 import (
-    Bot,
-)
+from nonebot.adapters.onebot.v11 import Bot
 
 from ..config import ConfigManager
 
