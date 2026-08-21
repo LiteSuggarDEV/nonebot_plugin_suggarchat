@@ -1,86 +1,77 @@
-from typing import Any
+"""提示词模板选择命令"""
 
-from nonebot.adapters import Message
-from nonebot.adapters.onebot.v11.event import MessageEvent
+from __future__ import annotations
+
+from nonebot.adapters.onebot.v11 import Message, MessageEvent
 from nonebot.matcher import Matcher
 from nonebot.params import CommandArg
 
-from ..config import ConfigManager
+from ..config import config_manager
+from ..prompt_store import Prompt, Prompts
+
+
+async def _display_current(matcher: Matcher) -> None:
+    """显示当前群组和私聊的提示词设置"""
+    await matcher.finish(
+        f"当前群组的提示词预设：{config_manager.config.group_prompt_character}\n"
+        f"当前私聊的提示词预设：{config_manager.config.private_prompt_character}"
+    )
+
+
+async def _list_prompts(
+    matcher: Matcher, prompt_type: str, prompts: list[Prompt]
+) -> None:
+    """列出可用的提示词预设"""
+    current = (
+        config_manager.config.group_prompt_character
+        if prompt_type == "group"
+        else config_manager.config.private_prompt_character
+    )
+    msg = f"{'群组' if prompt_type == 'group' else '私聊'}可用模板：\n"
+    for index, p in enumerate(prompts):
+        marker = "⭐ " if p.name == current else "   "
+        msg += f"{marker}{index + 1}). {p.name}\n"
+    await matcher.finish(msg)
+
+
+async def _set_prompt(
+    matcher: Matcher, prompt_type: str, prompts: list[Prompt], name: str
+) -> None:
+    """设置群组或私聊的提示词模板"""
+    for p in prompts:
+        if p.name == name:
+            if prompt_type == "group":
+                config_manager.ins_config.group_prompt_character = p.name
+            else:
+                config_manager.ins_config.private_prompt_character = p.name
+            config_manager.load_prompt()
+            await config_manager.save_config()
+            label = "群组" if prompt_type == "group" else "私聊"
+            await matcher.finish(f"已设置{label}提示词为：{p.name}")
+    label = "群组" if prompt_type == "group" else "私聊"
+    await matcher.finish(f"未找到预设，请输入/choose_prompt {prompt_type}查看预设列表")
 
 
 async def choose_prompt(
     event: MessageEvent, matcher: Matcher, args: Message = CommandArg()
 ):
-    """处理选择提示词命令"""
-
-    async def display_current_prompts() -> None:
-        """显示当前群组和私聊的提示词设置"""
-        msg = (
-            f"当前群组的提示词预设：{ConfigManager().config.group_prompt_character}\n"
-            f"当前私聊的提示词预设：{ConfigManager().config.private_prompt_character}"
-        )
-        await matcher.finish(msg)
-
-    async def handle_group_prompt(arg_list: list[str]) -> None:
-        """处理群组提示词设置"""
-        if len(arg_list) >= 2:
-            for i in (await ConfigManager().get_prompts()).group:
-                if i.name == arg_list[1]:
-                    ConfigManager().ins_config.group_prompt_character = i.name
-                    await ConfigManager().load_prompt()
-                    await ConfigManager().save_config()
-                    await matcher.finish(f"已设置群组提示词为：{i.name}")
-            await matcher.finish("未找到预设，请输入/choose_prompt group查看预设列表")
-        else:
-            await list_available_prompts(
-                (await ConfigManager().get_prompts()).group, "group"
-            )
-
-    async def handle_private_prompt(arg_list: list[str]) -> None:
-        """处理私聊提示词设置"""
-        if len(arg_list) >= 2:
-            for i in (await ConfigManager().get_prompts()).private:
-                if i.name == arg_list[1]:
-                    ConfigManager().ins_config.private_prompt_character = i.name
-                    await ConfigManager().load_prompt()
-                    await ConfigManager().save_config()
-                    await matcher.finish(f"已设置私聊提示词为：{i.name}")
-            await matcher.finish("未找到预设，请输入/choose_prompt private查看预设列表")
-        else:
-            await list_available_prompts(
-                (await ConfigManager().get_prompts()).private, "private"
-            )
-
-    async def list_available_prompts(prompts: list[Any], prompt_type: str) -> None:
-        """列出可用的提示词预设"""
-        msg = "可选的预设名称：\n"
-        for index, i in enumerate(prompts):
-            # 标记当前使用的提示词
-            current_marker = (
-                " (当前）>"
-                if (
-                    prompt_type == "group"
-                    and i.name == ConfigManager().config.group_prompt_character
-                )
-                or (
-                    prompt_type == "private"
-                    and i.name == ConfigManager().config.private_prompt_character
-                )
-                else ""
-            )
-            msg += f"{current_marker}{index + 1}). {i.name}\n"
-        await matcher.finish(msg)
-
-    # 解析命令参数
+    """切换提示词模板：/choose_prompt [group|private] [名称]"""
+    prompts: Prompts = await config_manager.get_prompts()
     arg_list = args.extract_plain_text().strip().split()
 
     if not arg_list:
-        # 如果没有参数，显示当前提示词设置
-        await display_current_prompts()
+        await _display_current(matcher)
         return
 
-    # 根据参数处理群组或私聊提示词
     if arg_list[0] == "group":
-        await handle_group_prompt(arg_list)
+        if len(arg_list) >= 2:
+            await _set_prompt(matcher, "group", prompts.group, arg_list[1])
+        else:
+            await _list_prompts(matcher, "group", prompts.group)
     elif arg_list[0] == "private":
-        await handle_private_prompt(arg_list)
+        if len(arg_list) >= 2:
+            await _set_prompt(matcher, "private", prompts.private, arg_list[1])
+        else:
+            await _list_prompts(matcher, "private", prompts.private)
+    else:
+        await matcher.finish("用法：/choose_prompt [group|private] [名称]")

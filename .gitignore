@@ -183,3 +183,4 @@ bot.py
 pdm.lock
 Pipfile
 /migrations/*
+tests/
