@@ -32,15 +32,11 @@ async def _estimate_usage(chat: CoreChatObject) -> UniResponseUsage:
     assert response is not None
     resp: str = response.content
     usg_prompt: int = 0
-    for i in text_generator(
-        chat._di_working.context_wrap.unwrap(), full_message=True
-    ):
+    for i in text_generator(chat._di_working.context_wrap.unwrap(), full_message=True):
         usg_prompt += await asyncio.to_thread(
             hybrid_token_count, i, tokenizer_type="jieba"
         )
-    usg_gen = await asyncio.to_thread(
-        hybrid_token_count, resp, tokenizer_type="jieba"
-    )
+    usg_gen = await asyncio.to_thread(hybrid_token_count, resp, tokenizer_type="jieba")
     return UniResponseUsage(
         prompt_tokens=usg_prompt,
         completion_tokens=usg_gen,

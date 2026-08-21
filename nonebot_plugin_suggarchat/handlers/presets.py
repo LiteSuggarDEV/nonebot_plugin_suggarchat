@@ -1,4 +1,5 @@
 """模型预设列表命令"""
+
 from __future__ import annotations
 
 from nonebot.matcher import Matcher

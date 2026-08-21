@@ -1,4 +1,5 @@
 """提示词模板选择命令"""
+
 from __future__ import annotations
 
 from nonebot.adapters.onebot.v11 import Message, MessageEvent
@@ -17,7 +18,9 @@ async def _display_current(matcher: Matcher) -> None:
     )
 
 
-async def _list_prompts(matcher: Matcher, prompt_type: str, prompts: list[Prompt]) -> None:
+async def _list_prompts(
+    matcher: Matcher, prompt_type: str, prompts: list[Prompt]
+) -> None:
     """列出可用的提示词预设"""
     current = (
         config_manager.config.group_prompt_character

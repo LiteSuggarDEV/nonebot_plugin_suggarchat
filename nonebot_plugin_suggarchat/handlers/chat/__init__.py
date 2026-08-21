@@ -189,9 +189,7 @@ async def entry(event: MessageEvent, matcher: Matcher, bot: Bot):
 
     # 按 chat_pending_mode 处理锁占用场景（single / single_with_report / queue）。
     # 返回 True 表示已停止本次流程。
-    if await get_pending_mode_strategy(
-        config.function.chat_pending_mode
-    ).handle_locked(
+    if await get_pending_mode_strategy(config.function.chat_pending_mode).handle_locked(
         lock=lock,
         matcher=matcher,
         event=event,

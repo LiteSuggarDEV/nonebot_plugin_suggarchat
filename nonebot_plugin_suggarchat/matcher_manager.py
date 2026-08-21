@@ -29,12 +29,11 @@ from .handlers import (
     abstract_show,
     add_notices,
     chat,
+    chat_switch,
     chatobj_manage,
     choose_prompt,
     debug_switchs,
     del_memory,
-    disable,
-    enable,
     insights,
     mcp_command,
     menu,
@@ -44,15 +43,13 @@ from .handlers import (
     recall,
     sessions,
     set_preset,
-    switch,
-    t_preset,
 )
 
 # 创建基础匹配器组，所有匹配器都需满足is_bot_enabled规则
 base_matcher = MatcherGroup(rule=is_bot_enabled)
 
 # 聊天开关匹配器组：仅检查全局开关与功能开关，不受每群 enable 标记影响，
-# 避免 /disable 关闭群聊后 is_bot_enabled 失效，导致无法再次执行 /enable
+# 避免 /chat off 关闭群聊后 is_bot_enabled 失效，导致无法再次执行 /chat on
 chat_switch_matcher = MatcherGroup(rule=is_bot_globally_enabled)
 
 
@@ -149,14 +146,6 @@ MATCHERS: list[MatcherSpec] = [
         permission=is_bot_admin,
         handler=set_preset,
     ),
-    MatcherSpec(
-        command="test_preset",
-        aliases={"测试预设"},
-        priority=10,
-        block=True,
-        permission=is_bot_admin,
-        handler=t_preset,
-    ),
     # ---- 会话域 ----
     MatcherSpec(
         command="sessions",
@@ -203,30 +192,13 @@ MATCHERS: list[MatcherSpec] = [
     ),
     # ---- 聊天开关域 ----
     MatcherSpec(
-        command="autochat",
-        aliases={"自动回复", "autoreply"},
-        priority=10,
-        block=True,
-        permission=is_group_admin,
-        handler=switch,
-    ),
-    MatcherSpec(
-        command="enable",
-        aliases={"启用聊天", "enable_chat"},
+        command="chat",
+        aliases={"聊天开关", "chat_switch"},
         priority=10,
         block=True,
         permission=is_group_admin,
         group=chat_switch_matcher,
-        handler=enable,
-    ),
-    MatcherSpec(
-        command="disable",
-        aliases={"禁用聊天", "disable_chat"},
-        priority=10,
-        block=True,
-        permission=is_group_admin,
-        group=chat_switch_matcher,
-        handler=disable,
+        handler=chat_switch,
     ),
 ]
 
@@ -254,7 +226,7 @@ def _register(spec: MatcherSpec) -> None:
             kwargs["aliases"] = spec.aliases
         # 仅当显式指定时才传入，避免 False 覆盖 NoneBot 默认的 None
         # （NoneBot 中 force_whitespace=False 表示命令后必须无空白，
-        #  会导致 `/enable on` 这类带空格参数的命令静默失配）
+        #  会导致 `/chat on` 这类带空格参数的命令静默失配）
         if spec.force_whitespace is not None:
             kwargs["force_whitespace"] = spec.force_whitespace
         matcher = group.on_command(spec.command, **kwargs)

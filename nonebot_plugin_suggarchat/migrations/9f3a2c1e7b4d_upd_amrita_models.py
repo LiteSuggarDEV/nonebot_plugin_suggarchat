@@ -115,7 +115,11 @@ _OLD_MEMORY_SESSIONS_COL_NAMES = ["id", "ins_id", "is_group", "created_at", "dat
 
 # 需兜底确保的 amrita 模型索引
 _INDICES: list[tuple[str, str, list[str]]] = [
-    ("idx_amrita_user_id_last_active", "amrita_user_metadata", ["user_id", "last_active"]),
+    (
+        "idx_amrita_user_id_last_active",
+        "amrita_user_metadata",
+        ["user_id", "last_active"],
+    ),
     ("idx_am_sessions_user_id", "amrita_memory_sessions", ["user_id"]),
     ("idx_am_sessions_created_at_time", "amrita_memory_sessions", ["created_at"]),
     ("idx_amrita_group_config_user_id", "amrita_group_config", ["user_id"]),
@@ -157,11 +161,9 @@ def _user_id_expr(
     return sa.case(
         (
             is_group,
-            sa.cast(sa.literal("group_"), sa.String)
-            + sa.cast(ins_id, sa.String),
+            sa.cast(sa.literal("group_"), sa.String) + sa.cast(ins_id, sa.String),
         ),
-        else_=sa.cast(sa.literal("user_"), sa.String)
-        + sa.cast(ins_id, sa.String),
+        else_=sa.cast(sa.literal("user_"), sa.String) + sa.cast(ins_id, sa.String),
     )
 
 
@@ -259,9 +261,7 @@ def _ensure_old_tables() -> None:
         op.create_table(
             "suggarchat_global_insights",
             *_GLOBAL_INSIGHTS_COLS,
-            sa.PrimaryKeyConstraint(
-                "date", name=op.f("pk_suggarchat_global_insights")
-            ),
+            sa.PrimaryKeyConstraint("date", name=op.f("pk_suggarchat_global_insights")),
         )
     if not insp.has_table("suggarchat_group_config"):
         op.create_table(
@@ -294,12 +294,16 @@ def _ensure_old_tables() -> None:
             sa.ForeignKeyConstraint(
                 ["ins_id"],
                 ["suggarchat_memory_data.ins_id"],
-                name=op.f("fk_suggarchat_memory_sessions_ins_id_suggarchat_memory_data"),
+                name=op.f(
+                    "fk_suggarchat_memory_sessions_ins_id_suggarchat_memory_data"
+                ),
             ),
             sa.ForeignKeyConstraint(
                 ["is_group"],
                 ["suggarchat_memory_data.is_group"],
-                name=op.f("fk_suggarchat_memory_sessions_is_group_suggarchat_memory_data"),
+                name=op.f(
+                    "fk_suggarchat_memory_sessions_is_group_suggarchat_memory_data"
+                ),
             ),
             sa.PrimaryKeyConstraint("id", name=op.f("pk_suggarchat_memory_sessions")),
             sa.Index("idx_sessions_created_at", "created_at"),
@@ -365,9 +369,7 @@ def _migrate_user_metadata() -> None:
         sa.literal(0),
         sa.literal(0),
         sa.literal(0),
-    ).where(
-        ~sa.exists(sa.select(1).select_from(dst).where(dst.c["id"] == src.c["id"]))
-    )
+    ).where(~sa.exists(sa.select(1).select_from(dst).where(dst.c["id"] == src.c["id"])))
     op.execute(dst.insert().from_select(_USER_METADATA_COL_NAMES, sel))
 
 
@@ -382,9 +384,7 @@ def _migrate_memory_data() -> None:
         _user_id_expr(src.c["is_group"], src.c["ins_id"]),
         src.c["memory_json"],
         sa.literal(""),
-    ).where(
-        ~sa.exists(sa.select(1).select_from(dst).where(dst.c["id"] == src.c["id"]))
-    )
+    ).where(~sa.exists(sa.select(1).select_from(dst).where(dst.c["id"] == src.c["id"])))
     op.execute(dst.insert().from_select(_MEMORY_DATA_COL_NAMES, sel))
 
 
@@ -399,9 +399,7 @@ def _migrate_memory_sessions() -> None:
         _user_id_expr(src.c["is_group"], src.c["ins_id"]),
         src.c["created_at"],
         src.c["data"],
-    ).where(
-        ~sa.exists(sa.select(1).select_from(dst).where(dst.c["id"] == src.c["id"]))
-    )
+    ).where(~sa.exists(sa.select(1).select_from(dst).where(dst.c["id"] == src.c["id"])))
     op.execute(dst.insert().from_select(_MEMORY_SESSIONS_COL_NAMES, sel))
 
 
@@ -413,13 +411,12 @@ def _migrate_group_config() -> None:
     dst = _table(_TMP, _GROUP_CONFIG_COL_NAMES)
     sel = sa.select(
         src.c["id"],
-        sa.cast(sa.literal("group_"), sa.String) + sa.cast(src.c["group_id"], sa.String),
+        sa.cast(sa.literal("group_"), sa.String)
+        + sa.cast(src.c["group_id"], sa.String),
         src.c["enable"],
         src.c["fake_people"],
         src.c["last_updated"],
-    ).where(
-        ~sa.exists(sa.select(1).select_from(dst).where(dst.c["id"] == src.c["id"]))
-    )
+    ).where(~sa.exists(sa.select(1).select_from(dst).where(dst.c["id"] == src.c["id"])))
     op.execute(dst.insert().from_select(_GROUP_CONFIG_COL_NAMES, sel))
 
 
@@ -472,9 +469,7 @@ def _restore_memory_sessions() -> None:
         _is_group_expr(src.c["user_id"]),
         src.c["created_at"],
         src.c["data"],
-    ).where(
-        ~sa.exists(sa.select(1).select_from(dst).where(dst.c["id"] == src.c["id"]))
-    )
+    ).where(~sa.exists(sa.select(1).select_from(dst).where(dst.c["id"] == src.c["id"])))
     op.execute(dst.insert().from_select(_OLD_MEMORY_SESSIONS_COL_NAMES, sel))
 
 
@@ -491,9 +486,7 @@ def _restore_group_config() -> None:
         sa.literal(""),
         src.c["autoreply"],
         src.c["last_updated"],
-    ).where(
-        ~sa.exists(sa.select(1).select_from(dst).where(dst.c["id"] == src.c["id"]))
-    )
+    ).where(~sa.exists(sa.select(1).select_from(dst).where(dst.c["id"] == src.c["id"])))
     op.execute(dst.insert().from_select(_OLD_GROUP_CONFIG_COL_NAMES, sel))
 
 

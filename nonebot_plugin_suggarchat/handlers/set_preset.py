@@ -1,4 +1,5 @@
 """设置模型预设命令"""
+
 from __future__ import annotations
 
 from nonebot.adapters.onebot.v11 import Message, MessageEvent

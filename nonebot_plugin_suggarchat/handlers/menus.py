@@ -1,4 +1,5 @@
 """聊天菜单命令"""
+
 from nonebot.adapters.onebot.v11 import Bot, MessageEvent, MessageSegment
 from nonebot.matcher import Matcher
 
@@ -12,16 +13,16 @@ _MENU_MSG = (
     "/choose_prompt — 切换提示词模板\n"
     "/presets — 查看模型列表\n"
     "/set_preset <名> — 切换模型\n"
-    "/test_preset [名] [-d] — 测试模型\n"
     "/sessions — 会话管理\n"
     "/del_memory — 清除记忆\n"
     "/show-abstract — 查看摘要\n"
     "/insights — 今日用量\n"
     "/chatobj — 会话状态\n"
     "/mcp — MCP 管理\n"
-    "/debug — 调试开关\n"
-    "/autochat on|off — 自动回复\n"
-    "/enable|/disable — 启用/禁用聊天"
+    "/debug on|off|status — 调试开关\n"
+    "/chat on|off — 启用/禁用聊天\n"
+    "/chat auto on|off — 自动回复\n"
+    "/chat status — 查看状态"
 )
 
 

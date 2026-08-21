@@ -182,26 +182,25 @@ nb run
 /choose_prompt     — 切换提示词模板
 /presets           — 查看模型列表
 /set_preset <名>   — 切换模型
-/test_preset [名]  — 测试模型
 /sessions          — 会话管理
 /del_memory        — 清除记忆
 /show-abstract     — 查看摘要
 /insights          — 今日用量
 /chatobj           — 会话状态
 /mcp               — MCP 管理
-/debug             — 调试开关
-/autochat <on|off> — 自动回复开关
-/enable            — 启用聊天
-/disable           — 禁用聊天
+/debug on|off|status — 调试开关
+/chat on|off       — 启用/禁用聊天
+/chat auto on|off  — 自动回复开关
+/chat status       — 查看聊天状态
 ```
 
 ### 权限说明
 
 | 等级 | 说明 | 命令示例 |
 | --- | --- | --- |
-| 超级用户 | 全局 `SUPERUSERS` | `/presets` `/set_preset` `/choose_prompt` `/sessions` `/test_preset` `/debug` `/mcp` |
-| 群管理 | 群主 / 管理员 / 超级用户 | `/prompt` `/autochat` `/enable` `/disable` |
-| 普通用户 | 所有人 | `/menu` `/del_memory` `/show-abstract` `/insights` `/chatobj` |
+| 超级用户 | 全局 `SUPERUSERS` | `/presets` `/set_preset` `/choose_prompt` `/sessions` `/debug` `/mcp` |
+| 群管理 | 群主 / 管理员 / 超级用户 | `/prompt` `/chatobj` `/chat` |
+| 普通用户 | 所有人 | `/menu` `/del_memory` `/show-abstract` `/insights` |
 
 ### 核心配置速览
 

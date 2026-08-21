@@ -209,7 +209,10 @@ async def _session_compact(event: MessageEvent, matcher: Matcher, force: bool) -
     try:
         async with repo.make_lock(uni_id):
             async with MemoryLimiter(
-                data, train, config=work_config, preset=await resolve_preset(config.preset)
+                data,
+                train,
+                config=work_config,
+                preset=await resolve_preset(config.preset),
             ) as lim:
                 await lim.run_enforce()
                 usage = lim.usage
